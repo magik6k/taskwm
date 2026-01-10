@@ -269,6 +269,34 @@ class TaskBar:
         self.check_visibility()
         self.root.after(500, self.poll_state)
 
+    def _ensure_position(self):
+        """Re-apply position using xdotool - helps with override-redirect redraw."""
+        try:
+            monitor = self.st.get_setting('monitor')
+            if not monitor:
+                monitor = bspwm.get_focused_monitor()
+
+            result = subprocess.run(
+                ['bspc', 'query', '-T', '-m', monitor],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                import json
+                monitor_info = json.loads(result.stdout)
+                rect = monitor_info.get('rectangle', {})
+                x = rect.get('x', 0)
+                y = rect.get('y', 0)
+                width = rect.get('width', self.root.winfo_screenwidth())
+            else:
+                return
+
+            wid = self.root.winfo_id()
+            subprocess.run(['xdotool', 'windowmove', str(wid), str(x), str(y)], timeout=2)
+            subprocess.run(['xdotool', 'windowsize', str(wid), str(width), str(self.bar_height)], timeout=2)
+            subprocess.run(['xdotool', 'windowactivate', '--sync', str(wid)], timeout=2)
+        except Exception:
+            pass
+
     def check_visibility(self):
         """Show/hide bar based on current desktop on our monitor."""
         try:
@@ -282,6 +310,16 @@ class TaskBar:
 
             if current == ACTIVE_DESKTOP:
                 self.root.deiconify()
+                self.root.lift()
+                # Force full redraw - necessary for override-redirect windows
+                bg = self.theme.get('bg', '#111111')
+                self.root.configure(bg=bg)
+                self.main_frame.configure(bg=bg)
+                self.title_label.configure(bg=bg)
+                self.root.update_idletasks()
+                self.root.update()
+                # Re-position to ensure correct placement
+                self.root.after(50, self._ensure_position)
             else:
                 self.root.withdraw()
         except Exception:

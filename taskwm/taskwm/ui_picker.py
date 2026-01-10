@@ -481,13 +481,10 @@ class TaskPicker:
             window_id = hex(self.root.winfo_id())
             bspwm.move_window(window_id, TASKS_DESKTOP)
 
-            # Set floating and some reasonable size
-            bspwm.set_window_state(window_id, 'floating')
+            # Set tiled to maximize on the desktop
+            bspwm.set_window_state(window_id, 'tiled')
         except Exception as e:
             print(f"[picker] Could not position window: {e}", file=sys.stderr)
-
-        # Set window size
-        self.root.geometry("400x500")
 
     def run(self):
         """Start the picker."""
