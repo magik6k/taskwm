@@ -1,0 +1,35 @@
+#!/bin/bash
+# Restart taskwm daemon and UI components
+
+set +e  # Don't exit on error
+
+echo "Stopping taskwm..."
+pkill -f 'taskwm' 2>/dev/null || true
+pkill -f 'ui_picker' 2>/dev/null || true
+
+sleep 2
+
+# Clean PID files
+rm -f ~/.local/state/taskwm/*.pid 2>/dev/null
+
+echo "Starting taskwm daemon..."
+nohup python3 -m taskwm.cli daemon > /tmp/taskwm.log 2>&1 &
+
+sleep 5
+
+echo "Checking status..."
+if pgrep -f 'taskwm.cli daemon' > /dev/null; then
+    echo "Daemon running"
+else
+    echo "ERROR: Daemon not running"
+    cat /tmp/taskwm.log
+    exit 1
+fi
+
+if pgrep -f 'ui_picker' > /dev/null; then
+    echo "Picker running"
+else
+    echo "WARNING: Picker not running"
+fi
+
+echo "Done. Log at /tmp/taskwm.log"
