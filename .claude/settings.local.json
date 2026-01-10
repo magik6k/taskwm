@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(bspc query:*)",
+      "Bash(xwininfo:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  }
+}
