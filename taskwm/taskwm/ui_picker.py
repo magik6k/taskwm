@@ -450,7 +450,8 @@ class TaskPicker:
             self.st.reload()
             current_id = self.st.get_current_task_id()
 
-            for tf in self.task_frames:
+            # Find index of current task and update selection to match
+            for i, tf in enumerate(self.task_frames):
                 task_id = tf['task_id']
                 label = tf['label']
                 # Get current text and update prefix
@@ -464,8 +465,12 @@ class TaskPicker:
 
                 if task_id == current_id:
                     label.configure(text='>' + text[1:])
+                    self.selected_index = i  # Move selection to current task
                 else:
                     label.configure(text=' ' + text[1:])
+
+            # Update visual selection
+            self.update_selection()
         except Exception:
             pass
 
