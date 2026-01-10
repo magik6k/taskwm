@@ -9,7 +9,6 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULT_CONFIG = {
     "monitor": None,  # None = auto-detect (focused monitor at daemon start)
-    "bar_height": 24,
     "theme": {
         "font": "monospace 10",
         "bg": "#111111",
@@ -24,8 +23,7 @@ DEFAULT_CONFIG = {
     },
     "behavior": {
         "close_policy": "delete",  # "archive" or "delete"
-        "move_stray_on_tasks_to": "active",  # "active" or "last"
-        "hide_bar_when_not_active": False
+        "move_stray_on_tasks_to": "active"  # "active" or "last"
     }
 }
 
@@ -95,11 +93,6 @@ class Config:
         return self.get('monitor')
 
     @property
-    def bar_height(self) -> int:
-        """Get bar height."""
-        return self.get('bar_height', 24)
-
-    @property
     def theme(self) -> dict:
         """Get theme configuration."""
         return self.get('theme', DEFAULT_CONFIG['theme'])
@@ -113,11 +106,6 @@ class Config:
     def move_stray_to(self) -> str:
         """Get where to move stray windows on tasks desktop."""
         return self.get('behavior.move_stray_on_tasks_to', 'active')
-
-    @property
-    def hide_bar_when_not_active(self) -> bool:
-        """Whether to hide bar when not on active desktop."""
-        return self.get('behavior.hide_bar_when_not_active', False)
 
 
 # Singleton instance

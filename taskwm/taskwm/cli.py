@@ -201,19 +201,27 @@ def cmd_daemon(args):
 
 def cmd_ui(args):
     """Start UI components for development."""
-    from . import ui_picker, ui_bar
-    import threading
+    from . import ui_picker
+    ui_picker.run_picker()
+    return 0
 
-    if args.picker:
-        ui_picker.run_picker()
-    elif args.bar:
-        ui_bar.run_bar()
-    else:
-        # Start both
-        bar_thread = threading.Thread(target=ui_bar.run_bar, daemon=True)
-        bar_thread.start()
-        ui_picker.run_picker()
 
+def cmd_status(args):
+    """Output status for polybar (task title or empty)."""
+    s = state.get_state()
+    task = s.get_current_task()
+
+    if not task:
+        # No active task
+        return 0
+
+    title = task['title']
+    max_len = args.max_length if hasattr(args, 'max_length') and args.max_length else 50
+
+    if len(title) > max_len:
+        title = title[:max_len - 3] + "..."
+
+    print(title)
     return 0
 
 
@@ -264,10 +272,13 @@ def main():
     daemon_parser.set_defaults(func=cmd_daemon)
 
     # tw ui - start UI (dev mode)
-    ui_parser = subparsers.add_parser('ui', help='Start UI components')
-    ui_parser.add_argument('--picker', action='store_true', help='Start only picker')
-    ui_parser.add_argument('--bar', action='store_true', help='Start only bar')
+    ui_parser = subparsers.add_parser('ui', help='Start picker UI')
     ui_parser.set_defaults(func=cmd_ui)
+
+    # tw status - output for polybar
+    status_parser = subparsers.add_parser('status', help='Output status for polybar')
+    status_parser.add_argument('-l', '--max-length', type=int, default=50, help='Max title length')
+    status_parser.set_defaults(func=cmd_status)
 
     args = parser.parse_args()
 
