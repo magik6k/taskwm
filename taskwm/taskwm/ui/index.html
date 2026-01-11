@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>taskwm - Tasks</title>
+    <style>
+        :root {
+            --bg: #111111;
+            --fg: #e6e6e6;
+            --accent: #66aaff;
+            --button-bg: #222222;
+            --entry-bg: #1a1a1a;
+            --select-bg: #333333;
+            --border: #333333;
+            --muted: #666666;
+            --danger: #aa4444;
+            --danger-dim: #664444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: monospace;
+            font-size: 13px;
+            background: var(--bg);
+            color: var(--fg);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 10px;
+        }
+
+        .top-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .top-bar input {
+            flex: 1;
+            background: var(--entry-bg);
+            border: 1px solid var(--border);
+            color: var(--fg);
+            padding: 8px 12px;
+            font-family: inherit;
+            font-size: inherit;
+            outline: none;
+        }
+
+        .top-bar input:focus {
+            border-color: var(--accent);
+        }
+
+        .top-bar button {
+            background: var(--button-bg);
+            border: none;
+            color: var(--fg);
+            padding: 8px 16px;
+            font-family: inherit;
+            font-size: inherit;
+            cursor: pointer;
+        }
+
+        .top-bar button:hover {
+            background: var(--accent);
+            color: #000;
+        }
+
+        .task-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .task-row {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+            gap: 8px;
+        }
+
+        .task-row:hover {
+            background: var(--select-bg);
+        }
+
+        .task-row.selected {
+            background: var(--select-bg);
+        }
+
+        .task-title {
+            flex: 1;
+            font-size: 16px;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .task-title.current {
+            color: var(--accent);
+        }
+
+        .task-title .indicator {
+            display: inline-block;
+            width: 20px;
+        }
+
+        .win-count {
+            color: var(--muted);
+            font-size: 14px;
+            min-width: 35px;
+            text-align: right;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .ctrl-btn {
+            color: #555;
+            cursor: pointer;
+            padding: 2px 4px;
+            font-size: 18px;
+            user-select: none;
+        }
+
+        .ctrl-btn:hover {
+            color: #888;
+        }
+
+        .ctrl-btn.select {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .ctrl-btn.select:hover {
+            color: var(--accent);
+        }
+
+        .ctrl-btn.close {
+            color: var(--danger-dim);
+            font-size: 14px;
+        }
+
+        .ctrl-btn.close:hover {
+            color: var(--danger);
+        }
+
+        .confirm-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .confirm-bar .msg {
+            color: #ff6666;
+            font-size: 12px;
+        }
+
+        .confirm-bar .yes {
+            color: #ff6666;
+            cursor: pointer;
+        }
+
+        .confirm-bar .yes:hover {
+            color: #ff8888;
+        }
+
+        .confirm-bar .no {
+            color: #888;
+            cursor: pointer;
+        }
+
+        .confirm-bar .no:hover {
+            color: #aaa;
+        }
+
+        /* Scrollbar styling */
+        .task-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .task-list::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+
+        .task-list::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        .task-list::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="top-bar">
+            <input type="text" id="task-input" placeholder="New task..." autofocus>
+            <button id="add-btn">+</button>
+        </div>
+        <div class="task-list" id="task-list"></div>
+    </div>
+
+    <script type="module">
+        // API wrapper with token validation
+        class TaskAPI {
+            constructor() {
+                this.ready = false;
+                this.readyPromise = this.waitForAPI();
+            }
+
+            async waitForAPI() {
+                // Wait for pywebview to inject the API
+                for (let i = 0; i < 50; i++) {
+                    if (window.pywebview && window.pywebview.api) {
+                        this.ready = true;
+                        return true;
+                    }
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                console.error('pywebview API not available');
+                return false;
+            }
+
+            async call(method, ...args) {
+                await this.readyPromise;
+                if (!this.ready) return null;
+                try {
+                    return await window.pywebview.api[method](...args);
+                } catch (e) {
+                    console.error(`API call ${method} failed:`, e);
+                    return null;
+                }
+            }
+
+            getTasks() { return this.call('get_tasks'); }
+            getCurrentTaskId() { return this.call('get_current_task_id'); }
+            getConfig() { return this.call('get_config'); }
+            addTask(title) { return this.call('add_task', title); }
+            selectTask(id) { return this.call('select_task', id); }
+            closeTask(id) { return this.call('close_task', id); }
+            moveTaskUp(id) { return this.call('move_task_up', id); }
+            moveTaskDown(id) { return this.call('move_task_down', id); }
+            getWindowCount(taskId) { return this.call('get_window_count', taskId); }
+        }
+
+        const api = new TaskAPI();
+
+        // State
+        let tasks = [];
+        let currentTaskId = null;
+        let selectedIndex = 0;
+        let confirmingTaskId = null;
+        let windowCounts = {};
+
+        // Elements
+        const taskInput = document.getElementById('task-input');
+        const addBtn = document.getElementById('add-btn');
+        const taskList = document.getElementById('task-list');
+
+        // Render functions
+        function renderTasks() {
+            taskList.innerHTML = '';
+
+            tasks.forEach((task, index) => {
+                const row = document.createElement('div');
+                row.className = 'task-row' + (index === selectedIndex ? ' selected' : '');
+                row.dataset.taskId = task.id;
+
+                const isCurrent = task.id === currentTaskId;
+                const winCount = windowCounts[task.id] || 0;
+
+                if (confirmingTaskId === task.id) {
+                    // Show confirm UI
+                    row.innerHTML = `
+                        <span class="task-title ${isCurrent ? 'current' : ''}">
+                            <span class="indicator">${isCurrent ? '▶' : ''}</span>
+                            ${escapeHtml(truncate(task.title, 50))}
+                        </span>
+                        <div class="confirm-bar">
+                            <span class="msg">Close ${winCount}w?</span>
+                            <span class="yes" data-action="confirm-yes">[Yes]</span>
+                            <span class="no" data-action="confirm-no">[No]</span>
+                        </div>
+                    `;
+                } else {
+                    row.innerHTML = `
+                        <span class="task-title ${isCurrent ? 'current' : ''}" data-action="select">
+                            <span class="indicator">${isCurrent ? '▶' : ''}</span>
+                            ${escapeHtml(truncate(task.title, 50))}
+                        </span>
+                        <span class="win-count">${winCount}w</span>
+                        <div class="controls">
+                            <span class="ctrl-btn" data-action="up">↑</span>
+                            <span class="ctrl-btn" data-action="down">↓</span>
+                            <span class="ctrl-btn select" data-action="select">[Select]</span>
+                            <span class="ctrl-btn close" data-action="close">[Close]</span>
+                        </div>
+                    `;
+                }
+
+                taskList.appendChild(row);
+            });
+        }
+
+        function truncate(str, len) {
+            return str.length > len ? str.slice(0, len - 3) + '...' : str;
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Event handlers
+        async function handleAction(action, taskId) {
+            switch (action) {
+                case 'select':
+                    await api.selectTask(taskId);
+                    await refresh();
+                    break;
+                case 'close':
+                    const winCount = windowCounts[taskId] || 0;
+                    if (winCount > 0) {
+                        confirmingTaskId = taskId;
+                        renderTasks();
+                    } else {
+                        await api.closeTask(taskId);
+                        await refresh();
+                    }
+                    break;
+                case 'up':
+                    await api.moveTaskUp(taskId);
+                    await refresh();
+                    break;
+                case 'down':
+                    await api.moveTaskDown(taskId);
+                    await refresh();
+                    break;
+                case 'confirm-yes':
+                    await api.closeTask(taskId);
+                    confirmingTaskId = null;
+                    await refresh();
+                    break;
+                case 'confirm-no':
+                    confirmingTaskId = null;
+                    renderTasks();
+                    break;
+            }
+        }
+
+        async function addTask() {
+            const title = taskInput.value.trim();
+            if (!title) return;
+
+            await api.addTask(title);
+            taskInput.value = '';
+            await refresh();
+        }
+
+        async function refresh() {
+            tasks = await api.getTasks() || [];
+            currentTaskId = await api.getCurrentTaskId();
+
+            // Clamp selection
+            if (selectedIndex >= tasks.length) {
+                selectedIndex = Math.max(0, tasks.length - 1);
+            }
+
+            // Update window counts
+            for (const task of tasks) {
+                windowCounts[task.id] = await api.getWindowCount(task.id) || 0;
+            }
+
+            renderTasks();
+        }
+
+        async function updateWindowCounts() {
+            for (const task of tasks) {
+                windowCounts[task.id] = await api.getWindowCount(task.id) || 0;
+            }
+            renderTasks();
+        }
+
+        // Event listeners
+        taskList.addEventListener('click', (e) => {
+            const action = e.target.dataset.action;
+            if (!action) return;
+
+            const row = e.target.closest('.task-row');
+            if (!row) return;
+
+            const taskId = parseInt(row.dataset.taskId, 10);
+            handleAction(action, taskId);
+        });
+
+        addBtn.addEventListener('click', addTask);
+
+        taskInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                if (taskInput.value.trim()) {
+                    addTask();
+                } else if (tasks.length > 0) {
+                    handleAction('select', tasks[selectedIndex].id);
+                }
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.target === taskInput && e.key !== 'Escape' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
+                return;
+            }
+
+            switch (e.key) {
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (selectedIndex > 0) {
+                        selectedIndex--;
+                        renderTasks();
+                    }
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    if (selectedIndex < tasks.length - 1) {
+                        selectedIndex++;
+                        renderTasks();
+                    }
+                    break;
+                case 'Delete':
+                    if (tasks.length > 0) {
+                        handleAction('close', tasks[selectedIndex].id);
+                    }
+                    break;
+                case 'd':
+                    if (e.ctrlKey && tasks.length > 0) {
+                        e.preventDefault();
+                        handleAction('close', tasks[selectedIndex].id);
+                    }
+                    break;
+                case 'n':
+                    if (e.ctrlKey) {
+                        e.preventDefault();
+                        taskInput.focus();
+                    }
+                    break;
+                case 'Escape':
+                    if (taskInput.value) {
+                        taskInput.value = '';
+                    } else if (confirmingTaskId !== null) {
+                        confirmingTaskId = null;
+                        renderTasks();
+                    } else {
+                        taskInput.blur();
+                    }
+                    break;
+                case 'Enter':
+                    if (e.target !== taskInput && tasks.length > 0) {
+                        handleAction('select', tasks[selectedIndex].id);
+                    }
+                    break;
+            }
+        });
+
+        // Initial load and polling
+        async function init() {
+            await api.readyPromise;
+
+            // Apply theme from config
+            const config = await api.getConfig();
+            if (config && config.theme) {
+                const root = document.documentElement;
+                const t = config.theme;
+                if (t.bg) root.style.setProperty('--bg', t.bg);
+                if (t.fg) root.style.setProperty('--fg', t.fg);
+                if (t.accent) root.style.setProperty('--accent', t.accent);
+                if (t.button_bg) root.style.setProperty('--button-bg', t.button_bg);
+                if (t.entry_bg) root.style.setProperty('--entry-bg', t.entry_bg);
+                if (t.select_bg) root.style.setProperty('--select-bg', t.select_bg);
+                if (t.border) root.style.setProperty('--border', t.border);
+            }
+
+            await refresh();
+
+            // Poll for updates
+            setInterval(async () => {
+                const newTasks = await api.getTasks() || [];
+                const newCurrentId = await api.getCurrentTaskId();
+
+                const tasksChanged = JSON.stringify(newTasks) !== JSON.stringify(tasks);
+                const currentChanged = newCurrentId !== currentTaskId;
+
+                if (tasksChanged || currentChanged) {
+                    tasks = newTasks;
+                    currentTaskId = newCurrentId;
+                    if (selectedIndex >= tasks.length) {
+                        selectedIndex = Math.max(0, tasks.length - 1);
+                    }
+                }
+
+                // Always update window counts
+                await updateWindowCounts();
+            }, 500);
+        }
+
+        init();
+    </script>
+</body>
+</html>

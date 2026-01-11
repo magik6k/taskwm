@@ -16,7 +16,8 @@ A task-based workflow manager for bspwm that lets you organize your work into ta
 
 **Required:**
 - Python 3.x
-- Tkinter (`tk` package on Arch)
+- pywebview (`pip install pywebview`)
+- WebKitGTK (for pywebview on Linux)
 - bspwm / bspc
 - xdotool (for window ID detection)
 - polybar (for status bar integration)
@@ -27,7 +28,8 @@ A task-based workflow manager for bspwm that lets you organize your work into ta
 ### Installing on Arch Linux
 
 ```sh
-sudo pacman -S python tk bspwm xdotool polybar
+sudo pacman -S python webkit2gtk-4.1 bspwm xdotool polybar
+pip install pywebview
 ```
 
 ## Installation
