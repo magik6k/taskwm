@@ -122,6 +122,10 @@ class PickerAPI:
         """Move a task down in the list."""
         return self._st.move_task_down(task_id)
 
+    def reorder_task(self, task_id: int, new_index: int) -> bool:
+        """Move a task to a specific index."""
+        return self._st.reorder_task(task_id, new_index)
+
     def get_window_count(self, task_id: int) -> int:
         """Get window count for a task."""
         current_id = self._st.get_current_task_id()
@@ -179,8 +183,8 @@ class TaskPicker:
 
         self.window.events.shown += on_shown
 
-        # Start webview (blocking)
-        webview.start()
+        # Start webview (blocking) - debug=True for devtools
+        webview.start(debug=True)
 
     def _position_window(self):
         """Position window on tasks desktop."""

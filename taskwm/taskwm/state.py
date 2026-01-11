@@ -169,6 +169,33 @@ class State:
                 return True
         return False
 
+    def reorder_task(self, task_id: int, new_index: int) -> bool:
+        """Move a task to a specific index. Returns True if moved."""
+        data = self.load()
+        tasks = data["tasks"]
+
+        # Find current index
+        current_index = None
+        for i, task in enumerate(tasks):
+            if task["id"] == task_id:
+                current_index = i
+                break
+
+        if current_index is None:
+            return False
+
+        # Clamp new_index to valid range
+        new_index = max(0, min(new_index, len(tasks) - 1))
+
+        if current_index == new_index:
+            return True  # Already at position
+
+        # Remove and insert at new position
+        task = tasks.pop(current_index)
+        tasks.insert(new_index, task)
+        self.save()
+        return True
+
     # Current task management
 
     def get_current_task_id(self) -> Optional[int]:
