@@ -126,6 +126,10 @@ class PickerAPI:
         """Move a task to a specific index."""
         return self._st.reorder_task(task_id, new_index)
 
+    def rename_task(self, task_id: int, new_title: str) -> bool:
+        """Rename a task."""
+        return self._st.rename_task(task_id, new_title)
+
     def get_window_count(self, task_id: int) -> int:
         """Get window count for a task."""
         current_id = self._st.get_current_task_id()
