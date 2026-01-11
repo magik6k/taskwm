@@ -251,6 +251,14 @@ taskwm/
     └── tw               # CLI wrapper script
 ```
 
+## Maintanance
+
+I'm generally very busy so I don't intend to actively work on fixing
+issues unless they are actively annoying for me personally. I've built
+this tool basically vibe-coding all the way. If there is someone who
+wants to maintain and grow this project please let me know so we can
+transfer the repo to a better home.
+
 ## License
 
 This program is free software; you can redistribute it and/or modify
