@@ -147,6 +147,20 @@ class State:
                 return True
         return False
 
+    def rename_task(self, task_id: int, new_title: str) -> bool:
+        """Rename a task. Returns True if found and renamed."""
+        new_title = new_title.replace('\n', ' ').replace('\r', '').strip()
+        if not new_title:
+            return False
+
+        data = self.load()
+        for task in data["tasks"]:
+            if task["id"] == task_id:
+                task["title"] = new_title
+                self.save()
+                return True
+        return False
+
     def move_task_up(self, task_id: int) -> bool:
         """Move a task up in the list. Returns True if moved."""
         data = self.load()

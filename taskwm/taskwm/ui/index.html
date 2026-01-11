@@ -87,6 +87,7 @@
             moveTaskDown(id) { return this.call('move_task_down', id); }
             getWindowCount(taskId) { return this.call('get_window_count', taskId); }
             reorderTask(id, newIndex) { return this.call('reorder_task', id, newIndex); }
+            renameTask(id, newTitle) { return this.call('rename_task', id, newTitle); }
         }
 
         const api = new TaskAPI();
@@ -99,6 +100,8 @@
                 isSelected: { type: Boolean },
                 winCount: { type: Number },
                 confirming: { type: Boolean },
+                editing: { type: Boolean },
+                editTitle: { type: String },
                 dragging: { type: Boolean },
                 dragOver: { type: Boolean },
             };
@@ -238,11 +241,59 @@
                 .confirm-bar .no:hover {
                     color: #aaa;
                 }
+
+                .ctrl-btn.edit {
+                    color: #888;
+                    font-size: 14px;
+                }
+
+                .ctrl-btn.edit:hover {
+                    color: var(--accent);
+                }
+
+                .edit-input {
+                    flex: 1;
+                    background: var(--entry-bg);
+                    border: 1px solid var(--accent);
+                    color: var(--fg);
+                    padding: 4px 8px;
+                    font-family: inherit;
+                    font-size: 14px;
+                    outline: none;
+                }
+
+                .edit-bar {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .edit-bar .save {
+                    color: var(--accent);
+                    cursor: pointer;
+                    font-size: 14px;
+                }
+
+                .edit-bar .save:hover {
+                    color: #88ccff;
+                }
+
+                .edit-bar .cancel {
+                    color: #888;
+                    cursor: pointer;
+                    font-size: 14px;
+                }
+
+                .edit-bar .cancel:hover {
+                    color: #aaa;
+                }
             `;
 
             constructor() {
                 super();
                 this.confirming = false;
+                this.editing = false;
+                this.editTitle = '';
                 this.dragging = false;
                 this.dragOver = false;
             }
@@ -254,19 +305,36 @@
 
                 return html`
                     <div class="task-row ${this.isSelected ? 'selected' : ''} ${this.dragging ? 'dragging' : ''} ${this.dragOver ? 'drag-over' : ''}"
-                         draggable="true"
+                         draggable="${!this.editing}"
                          @dragstart=${this._onDragStart}
                          @dragend=${this._onDragEnd}
                          @dragover=${this._onDragOver}
                          @dragleave=${this._onDragLeave}
                          @drop=${this._onDrop}>
-                        <span class="drag-handle">⠿</span>
-                        <span class="task-title ${this.isCurrent ? 'current' : ''}" @click=${this._onSelect}>
-                            <span class="indicator">${this.isCurrent ? '▶' : ''}</span>
-                            ${title}
-                        </span>
-                        <span class="win-count">${this.winCount}w</span>
-                        ${this.confirming ? this._renderConfirm() : this._renderControls()}
+                        ${this.editing ? this._renderEditMode() : html`
+                            <span class="drag-handle">⠿</span>
+                            <span class="task-title ${this.isCurrent ? 'current' : ''}" @click=${this._onSelect}>
+                                <span class="indicator">${this.isCurrent ? '▶' : ''}</span>
+                                ${title}
+                            </span>
+                            <span class="win-count">${this.winCount}w</span>
+                            ${this.confirming ? this._renderConfirm() : this._renderControls()}
+                        `}
+                    </div>
+                `;
+            }
+
+            _renderEditMode() {
+                return html`
+                    <input class="edit-input"
+                           type="text"
+                           .value=${this.editTitle}
+                           @input=${e => this.editTitle = e.target.value}
+                           @keydown=${this._onEditKeydown}
+                           autofocus>
+                    <div class="edit-bar">
+                        <span class="save" @click=${this._onEditSave}>[Save]</span>
+                        <span class="cancel" @click=${this._onEditCancel}>[Cancel]</span>
                     </div>
                 `;
             }
@@ -277,6 +345,7 @@
                         <span class="ctrl-btn" @click=${this._onMoveUp}>↑</span>
                         <span class="ctrl-btn" @click=${this._onMoveDown}>↓</span>
                         <span class="ctrl-btn select" @click=${this._onSelect}>[Select]</span>
+                        <span class="ctrl-btn edit" @click=${this._onEdit}>[Edit]</span>
                         <span class="ctrl-btn close" @click=${this._onClose}>[Close]</span>
                     </div>
                 `;
@@ -353,6 +422,41 @@
 
             _onMoveDown() {
                 this.dispatchEvent(new CustomEvent('task-move-down', { detail: { taskId: this.task.id }, bubbles: true, composed: true }));
+            }
+
+            _onEdit() {
+                this.editTitle = this.task.title;
+                this.editing = true;
+                // Focus input after render
+                this.updateComplete.then(() => {
+                    const input = this.shadowRoot.querySelector('.edit-input');
+                    if (input) {
+                        input.focus();
+                        input.select();
+                    }
+                });
+            }
+
+            _onEditKeydown(e) {
+                if (e.key === 'Enter') {
+                    this._onEditSave();
+                } else if (e.key === 'Escape') {
+                    this._onEditCancel();
+                }
+            }
+
+            _onEditSave() {
+                if (this.editTitle.trim()) {
+                    this.dispatchEvent(new CustomEvent('task-rename', {
+                        detail: { taskId: this.task.id, newTitle: this.editTitle.trim() },
+                        bubbles: true, composed: true
+                    }));
+                }
+                this.editing = false;
+            }
+
+            _onEditCancel() {
+                this.editing = false;
             }
         }
         customElements.define('task-row', TaskRow);
@@ -512,7 +616,8 @@
             _setupKeyboardShortcuts() {
                 document.addEventListener('keydown', (e) => {
                     const input = this.shadowRoot.querySelector('input');
-                    const isInInput = e.target.tagName === 'INPUT';
+                    // Check composedPath to detect inputs inside shadow DOM
+                    const isInInput = e.composedPath().some(el => el.tagName === 'INPUT');
 
                     if (e.key === 'ArrowUp' && !isInInput) {
                         e.preventDefault();
@@ -560,7 +665,8 @@
                          @task-close=${this._onTaskClose}
                          @task-move-up=${this._onTaskMoveUp}
                          @task-move-down=${this._onTaskMoveDown}
-                         @task-drop=${this._onTaskDrop}>
+                         @task-drop=${this._onTaskDrop}
+                         @task-rename=${this._onTaskRename}>
                         ${this.tasks.map((task, index) => html`
                             <task-row
                                 .task=${task}
@@ -615,6 +721,12 @@
                     await api.reorderTask(draggedId, targetIndex);
                     await this._refresh();
                 }
+            }
+
+            async _onTaskRename(e) {
+                const { taskId, newTitle } = e.detail;
+                await api.renameTask(taskId, newTitle);
+                await this._refresh();
             }
         }
         customElements.define('task-app', TaskApp);
