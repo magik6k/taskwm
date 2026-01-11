@@ -183,8 +183,8 @@ class TaskPicker:
 
         self.window.events.shown += on_shown
 
-        # Start webview (blocking) - debug=True for devtools
-        webview.start(debug=True)
+        # Start webview (blocking)
+        webview.start()
 
     def _position_window(self):
         """Position window on tasks desktop."""
