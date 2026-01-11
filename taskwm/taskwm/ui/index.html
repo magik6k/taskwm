@@ -33,6 +33,22 @@
             overflow: hidden;
         }
 
+        /* Global select styling */
+        select {
+            background: var(--entry-bg);
+            color: var(--fg);
+            border: 1px solid var(--border);
+            border-radius: 0;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        select option {
+            background: var(--entry-bg);
+            color: var(--fg);
+        }
+
         task-app {
             display: flex;
             flex-direction: column;
@@ -46,6 +62,9 @@
 
     <script type="module">
         import { LitElement, html, css } from 'https://cdn.jsdelivr.net/npm/lit@3/+esm';
+
+        const SIZES = ['S', 'M', 'L'];
+        const SIZE_ORDER = { 'S': 1, 'M': 2, 'L': 3 };
 
         // API wrapper
         class TaskAPI {
@@ -88,6 +107,12 @@
             getWindowCount(taskId) { return this.call('get_window_count', taskId); }
             reorderTask(id, newIndex) { return this.call('reorder_task', id, newIndex); }
             renameTask(id, newTitle) { return this.call('rename_task', id, newTitle); }
+            setTaskSize(id, size) { return this.call('set_task_size', id, size); }
+            setTaskCategory(id, categoryId) { return this.call('set_task_category', id, categoryId); }
+            getCategories() { return this.call('get_categories'); }
+            addCategory(name, color) { return this.call('add_category', name, color); }
+            updateCategory(id, name, color) { return this.call('update_category', id, name, color); }
+            removeCategory(id) { return this.call('remove_category', id); }
         }
 
         const api = new TaskAPI();
@@ -96,6 +121,7 @@
         class TaskRow extends LitElement {
             static properties = {
                 task: { type: Object },
+                categories: { type: Array },
                 isCurrent: { type: Boolean },
                 isSelected: { type: Boolean },
                 winCount: { type: Number },
@@ -104,6 +130,7 @@
                 editTitle: { type: String },
                 dragging: { type: Boolean },
                 dragOver: { type: Boolean },
+                sizePickerOpen: { type: Boolean },
             };
 
             static styles = css`
@@ -117,6 +144,7 @@
                     padding: 6px 8px;
                     gap: 8px;
                     transition: background 0.1s;
+                    border-left: 4px solid transparent;
                 }
 
                 .task-row:hover {
@@ -168,6 +196,93 @@
                 .indicator {
                     display: inline-block;
                     width: 20px;
+                }
+
+                /* Size gauge - visual bar indicator */
+                .size-gauge {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    cursor: pointer;
+                    position: relative;
+                }
+
+                .size-bar {
+                    height: 12px;
+                    background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 100%);
+                    opacity: 0.7;
+                    transition: width 0.2s;
+                }
+
+                .size-bar.s { width: 10px; }
+                .size-bar.m { width: 40px; }
+                .size-bar.l { width: 100px; }
+
+                .size-label {
+                    font-size: 14px;
+                    color: var(--fg);
+                    min-width: 20px;
+                    font-weight: bold;
+                }
+
+                .size-gauge:hover .size-bar {
+                    opacity: 1;
+                }
+
+                .size-dropdown {
+                    position: absolute;
+                    top: 100%;
+                    left: 0;
+                    background: var(--bg);
+                    border: 1px solid var(--border);
+                    z-index: 100;
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .size-option {
+                    padding: 4px 12px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 12px;
+                    color: var(--fg);
+                }
+
+                .size-option:hover {
+                    background: var(--select-bg);
+                }
+
+                .size-option .bar {
+                    height: 10px;
+                    background: var(--accent);
+                }
+
+                /* Category select */
+                .category-select {
+                    background: var(--entry-bg);
+                    border: 1px solid var(--border);
+                    color: var(--fg);
+                    padding: 2px 4px;
+                    font-family: inherit;
+                    font-size: 12px;
+                    cursor: pointer;
+                    outline: none;
+                    -webkit-appearance: none;
+                    -moz-appearance: none;
+                    appearance: none;
+                    border-radius: 0;
+                    max-width: 80px;
+                }
+
+                .category-select:hover {
+                    border-color: var(--muted);
+                }
+
+                .category-select option {
+                    background: var(--entry-bg);
+                    color: var(--fg);
                 }
 
                 .win-count {
@@ -291,20 +406,30 @@
 
             constructor() {
                 super();
+                this.categories = [];
                 this.confirming = false;
                 this.editing = false;
                 this.editTitle = '';
                 this.dragging = false;
                 this.dragOver = false;
+                this.sizePickerOpen = false;
+            }
+
+            _getCategoryColor() {
+                if (!this.task.category || !this.categories) return 'transparent';
+                const cat = this.categories.find(c => c.id === this.task.category);
+                return cat ? cat.color : 'transparent';
             }
 
             render() {
-                const title = this.task.title.length > 50
-                    ? this.task.title.slice(0, 47) + '...'
+                const title = this.task.title.length > 40
+                    ? this.task.title.slice(0, 37) + '...'
                     : this.task.title;
+                const catColor = this._getCategoryColor();
 
                 return html`
                     <div class="task-row ${this.isSelected ? 'selected' : ''} ${this.dragging ? 'dragging' : ''} ${this.dragOver ? 'drag-over' : ''}"
+                         style="border-left-color: ${catColor}"
                          draggable="${!this.editing}"
                          @dragstart=${this._onDragStart}
                          @dragend=${this._onDragEnd}
@@ -317,10 +442,70 @@
                                 <span class="indicator">${this.isCurrent ? '▶' : ''}</span>
                                 ${title}
                             </span>
+                            ${this._renderSizeGauge()}
+                            ${this._renderCategorySelect()}
                             <span class="win-count">${this.winCount}w</span>
                             ${this.confirming ? this._renderConfirm() : this._renderControls()}
                         `}
                     </div>
+                `;
+            }
+
+            _renderSizeGauge() {
+                const sizes = ['S', 'M', 'L'];
+                const sizeWidths = { 'S': 10, 'M': 40, 'L': 100 };
+                const currentSize = this.task.size || 'M';
+                return html`
+                    <div class="size-gauge" @click=${this._toggleSizePicker}>
+                        <div class="size-bar ${currentSize.toLowerCase()}" title="Size: ${currentSize}"></div>
+                        <span class="size-label">${currentSize}</span>
+                        ${this.sizePickerOpen ? html`
+                            <div class="size-dropdown">
+                                ${sizes.map(s => html`
+                                    <div class="size-option" @click=${(e) => this._selectSize(e, s)}>
+                                        <div class="bar" style="width: ${sizeWidths[s]}px"></div>
+                                        <span>${s}</span>
+                                    </div>
+                                `)}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            _toggleSizePicker(e) {
+                e.stopPropagation();
+                this.sizePickerOpen = !this.sizePickerOpen;
+                if (this.sizePickerOpen) {
+                    const close = () => {
+                        this.sizePickerOpen = false;
+                        document.removeEventListener('click', close);
+                    };
+                    setTimeout(() => document.addEventListener('click', close), 0);
+                }
+            }
+
+            _selectSize(e, size) {
+                e.stopPropagation();
+                this.sizePickerOpen = false;
+                this.dispatchEvent(new CustomEvent('task-size-change', {
+                    detail: { taskId: this.task.id, size },
+                    bubbles: true, composed: true
+                }));
+            }
+
+            _renderCategorySelect() {
+                const currentCat = this.task.category;
+                return html`
+                    <select class="category-select"
+                            @change=${this._onCategoryChange}
+                            @click=${e => e.stopPropagation()}>
+                        <option value="" ?selected=${!currentCat}>--</option>
+                        ${(this.categories || []).map(c => html`
+                            <option value=${c.id} ?selected=${c.id === currentCat}
+                                    style="color: ${c.color}">${c.name}</option>
+                        `)}
+                    </select>
                 `;
             }
 
@@ -359,6 +544,15 @@
                         <span class="no" @click=${this._onConfirmNo}>[No]</span>
                     </div>
                 `;
+            }
+
+            _onCategoryChange(e) {
+                const val = e.target.value;
+                const categoryId = val ? parseInt(val, 10) : null;
+                this.dispatchEvent(new CustomEvent('task-category-change', {
+                    detail: { taskId: this.task.id, categoryId },
+                    bubbles: true, composed: true
+                }));
             }
 
             _onDragStart(e) {
@@ -427,7 +621,6 @@
             _onEdit() {
                 this.editTitle = this.task.title;
                 this.editing = true;
-                // Focus input after render
                 this.updateComplete.then(() => {
                     const input = this.shadowRoot.querySelector('.edit-input');
                     if (input) {
@@ -461,14 +654,321 @@
         }
         customElements.define('task-row', TaskRow);
 
+        // Predefined color palette
+        const COLOR_PALETTE = [
+            '#ff6666', '#ff9966', '#ffcc66', '#ffff66', '#ccff66',
+            '#66ff66', '#66ffcc', '#66ffff', '#66ccff', '#6699ff',
+            '#6666ff', '#9966ff', '#cc66ff', '#ff66ff', '#ff66cc',
+            '#ff6699', '#888888', '#aaaaaa', '#cccccc', '#ffffff'
+        ];
+
+        // Color Picker Component
+        class ColorPicker extends LitElement {
+            static properties = {
+                color: { type: String },
+                open: { type: Boolean },
+            };
+
+            static styles = css`
+                :host {
+                    display: inline-block;
+                    position: relative;
+                }
+
+                .color-btn {
+                    width: 24px;
+                    height: 24px;
+                    border: 1px solid var(--border);
+                    cursor: pointer;
+                    padding: 0;
+                }
+
+                .color-btn:hover {
+                    border-color: var(--muted);
+                }
+
+                .picker-popup {
+                    position: absolute;
+                    top: 28px;
+                    left: 0;
+                    background: var(--bg);
+                    border: 1px solid var(--border);
+                    padding: 4px;
+                    display: grid;
+                    grid-template-columns: repeat(5, 1fr);
+                    gap: 2px;
+                    z-index: 100;
+                }
+
+                .color-option {
+                    width: 20px;
+                    height: 20px;
+                    border: 1px solid var(--border);
+                    cursor: pointer;
+                    padding: 0;
+                }
+
+                .color-option:hover {
+                    border-color: var(--fg);
+                }
+
+                .color-option.selected {
+                    border: 2px solid var(--accent);
+                }
+            `;
+
+            constructor() {
+                super();
+                this.color = '#66aaff';
+                this.open = false;
+            }
+
+            render() {
+                return html`
+                    <button class="color-btn"
+                            style="background: ${this.color}"
+                            @click=${this._togglePicker}></button>
+                    ${this.open ? html`
+                        <div class="picker-popup">
+                            ${COLOR_PALETTE.map(c => html`
+                                <button class="color-option ${c === this.color ? 'selected' : ''}"
+                                        style="background: ${c}"
+                                        @click=${() => this._selectColor(c)}></button>
+                            `)}
+                        </div>
+                    ` : ''}
+                `;
+            }
+
+            _togglePicker(e) {
+                e.stopPropagation();
+                this.open = !this.open;
+                if (this.open) {
+                    // Close on outside click
+                    const close = () => {
+                        this.open = false;
+                        document.removeEventListener('click', close);
+                    };
+                    setTimeout(() => document.addEventListener('click', close), 0);
+                }
+            }
+
+            _selectColor(color) {
+                this.color = color;
+                this.open = false;
+                this.dispatchEvent(new CustomEvent('color-change', {
+                    detail: { color },
+                    bubbles: true, composed: true
+                }));
+            }
+        }
+        customElements.define('color-picker', ColorPicker);
+
+        // Category Manager Component
+        class CategoryManager extends LitElement {
+            static properties = {
+                categories: { type: Array },
+                newName: { type: String },
+                newColor: { type: String },
+            };
+
+            static styles = css`
+                :host {
+                    display: block;
+                }
+
+                .manager {
+                    background: var(--bg);
+                    border: 1px solid var(--border);
+                    padding: 12px;
+                    margin-bottom: 10px;
+                }
+
+                .header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 10px;
+                    padding-bottom: 8px;
+                    border-bottom: 1px solid var(--border);
+                }
+
+                .header h3 {
+                    margin: 0;
+                    font-size: 14px;
+                    font-weight: normal;
+                }
+
+                .close-btn {
+                    color: var(--muted);
+                    cursor: pointer;
+                    font-size: 16px;
+                }
+
+                .close-btn:hover {
+                    color: var(--fg);
+                }
+
+                .cat-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                    margin-bottom: 10px;
+                }
+
+                .cat-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .cat-name {
+                    flex: 1;
+                    background: var(--entry-bg);
+                    border: 1px solid var(--border);
+                    color: var(--fg);
+                    padding: 4px 8px;
+                    font-family: inherit;
+                    font-size: 13px;
+                    outline: none;
+                }
+
+                .cat-name:focus {
+                    border-color: var(--accent);
+                }
+
+                .cat-delete {
+                    color: var(--danger-dim);
+                    cursor: pointer;
+                    font-size: 14px;
+                }
+
+                .cat-delete:hover {
+                    color: var(--danger);
+                }
+
+                .add-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding-top: 8px;
+                    border-top: 1px solid var(--border);
+                }
+
+                .add-btn {
+                    color: var(--accent);
+                    cursor: pointer;
+                    font-size: 14px;
+                }
+
+                .add-btn:hover {
+                    color: #88ccff;
+                }
+            `;
+
+            constructor() {
+                super();
+                this.categories = [];
+                this.newName = '';
+                this.newColor = '#66aaff';
+            }
+
+            render() {
+                return html`
+                    <div class="manager">
+                        <div class="header">
+                            <h3>Categories</h3>
+                            <span class="close-btn" @click=${this._onClose}>×</span>
+                        </div>
+                        <div class="cat-list">
+                            ${(this.categories || []).map(c => html`
+                                <div class="cat-item">
+                                    <color-picker .color=${c.color}
+                                                  @color-change=${e => this._onUpdateColor(c.id, e.detail.color)}></color-picker>
+                                    <input type="text" class="cat-name"
+                                           .value=${c.name}
+                                           @change=${e => this._onUpdateName(c.id, e.target.value)}>
+                                    <span class="cat-delete" @click=${() => this._onDelete(c.id)}>[×]</span>
+                                </div>
+                            `)}
+                        </div>
+                        <div class="add-row">
+                            <color-picker .color=${this.newColor}
+                                          @color-change=${e => this.newColor = e.detail.color}></color-picker>
+                            <input type="text" class="cat-name"
+                                   placeholder="New category..."
+                                   .value=${this.newName}
+                                   @input=${e => this.newName = e.target.value}
+                                   @keydown=${this._onNewKeydown}>
+                            <span class="add-btn" @click=${this._onAdd}>[Add]</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            _onClose() {
+                this.dispatchEvent(new CustomEvent('close-manager', { bubbles: true, composed: true }));
+            }
+
+            _onUpdateColor(id, color) {
+                const cat = this.categories.find(c => c.id === id);
+                if (cat) {
+                    this.dispatchEvent(new CustomEvent('update-category', {
+                        detail: { id, name: cat.name, color },
+                        bubbles: true, composed: true
+                    }));
+                }
+            }
+
+            _onUpdateName(id, name) {
+                const cat = this.categories.find(c => c.id === id);
+                if (cat && name.trim()) {
+                    this.dispatchEvent(new CustomEvent('update-category', {
+                        detail: { id, name: name.trim(), color: cat.color },
+                        bubbles: true, composed: true
+                    }));
+                }
+            }
+
+            _onDelete(id) {
+                this.dispatchEvent(new CustomEvent('delete-category', {
+                    detail: { id },
+                    bubbles: true, composed: true
+                }));
+            }
+
+            _onAdd() {
+                if (this.newName.trim()) {
+                    this.dispatchEvent(new CustomEvent('add-category', {
+                        detail: { name: this.newName.trim(), color: this.newColor },
+                        bubbles: true, composed: true
+                    }));
+                    this.newName = '';
+                    this.newColor = '#66aaff';
+                }
+            }
+
+            _onNewKeydown(e) {
+                if (e.key === 'Enter') {
+                    this._onAdd();
+                }
+            }
+        }
+        customElements.define('category-manager', CategoryManager);
+
         // Main App Component
         class TaskApp extends LitElement {
             static properties = {
                 tasks: { type: Array },
+                categories: { type: Array },
                 currentTaskId: { type: Number },
                 selectedIndex: { type: Number },
                 windowCounts: { type: Object },
                 newTaskTitle: { type: String },
+                filterMinSize: { type: String },
+                filterMaxSize: { type: String },
+                filterCategories: { type: Array },
+                showCategoryManager: { type: Boolean },
             };
 
             static styles = css`
@@ -485,7 +985,7 @@
                     margin-bottom: 10px;
                 }
 
-                .top-bar input {
+                .top-bar input[type="text"] {
                     flex: 1;
                     background: var(--entry-bg);
                     border: 1px solid var(--border);
@@ -496,7 +996,7 @@
                     outline: none;
                 }
 
-                .top-bar input:focus {
+                .top-bar input[type="text"]:focus {
                     border-color: var(--accent);
                 }
 
@@ -513,6 +1013,90 @@
                 .top-bar button:hover {
                     background: var(--accent);
                     color: #000;
+                }
+
+                .filter-bar {
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                    margin-bottom: 10px;
+                    flex-wrap: wrap;
+                }
+
+                .filter-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                }
+
+                .filter-label {
+                    color: var(--muted);
+                    font-size: 12px;
+                }
+
+                .filter-select {
+                    background: var(--entry-bg);
+                    border: 1px solid var(--border);
+                    color: var(--fg);
+                    padding: 4px 8px;
+                    font-family: inherit;
+                    font-size: 12px;
+                    cursor: pointer;
+                    outline: none;
+                    -webkit-appearance: none;
+                    -moz-appearance: none;
+                    appearance: none;
+                    border-radius: 0;
+                }
+
+                .filter-select:hover {
+                    border-color: var(--muted);
+                }
+
+                .filter-select option {
+                    background: var(--entry-bg);
+                    color: var(--fg);
+                }
+
+                .cat-filter {
+                    display: flex;
+                    gap: 4px;
+                    flex-wrap: wrap;
+                }
+
+                .cat-chip {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 2px 8px;
+                    border-radius: 10px;
+                    font-size: 12px;
+                    cursor: pointer;
+                    border: 1px solid var(--border);
+                    background: var(--entry-bg);
+                    color: var(--muted);
+                }
+
+                .cat-chip.active {
+                    border-color: var(--accent);
+                    color: var(--fg);
+                }
+
+                .cat-chip .dot {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                }
+
+                .manage-btn {
+                    color: var(--muted);
+                    cursor: pointer;
+                    font-size: 12px;
+                    margin-left: auto;
+                }
+
+                .manage-btn:hover {
+                    color: var(--accent);
                 }
 
                 .task-list {
@@ -536,15 +1120,26 @@
                 .task-list::-webkit-scrollbar-thumb:hover {
                     background: #444;
                 }
+
+                .no-tasks {
+                    color: var(--muted);
+                    text-align: center;
+                    padding: 20px;
+                }
             `;
 
             constructor() {
                 super();
                 this.tasks = [];
+                this.categories = [];
                 this.currentTaskId = null;
                 this.selectedIndex = 0;
                 this.windowCounts = {};
                 this.newTaskTitle = '';
+                this.filterMinSize = '';
+                this.filterMaxSize = '';
+                this.filterCategories = [];
+                this.showCategoryManager = false;
                 this._init();
             }
 
@@ -573,13 +1168,14 @@
 
             async _refresh() {
                 this.tasks = await api.getTasks() || [];
+                this.categories = await api.getCategories() || [];
                 this.currentTaskId = await api.getCurrentTaskId();
 
-                if (this.selectedIndex >= this.tasks.length) {
-                    this.selectedIndex = Math.max(0, this.tasks.length - 1);
+                const filtered = this._getFilteredTasks();
+                if (this.selectedIndex >= filtered.length) {
+                    this.selectedIndex = Math.max(0, filtered.length - 1);
                 }
 
-                // Update window counts
                 const counts = {};
                 for (const task of this.tasks) {
                     counts[task.id] = await api.getWindowCount(task.id) || 0;
@@ -587,24 +1183,57 @@
                 this.windowCounts = counts;
             }
 
+            _getFilteredTasks() {
+                return this.tasks.filter(task => {
+                    // Size filter
+                    const taskSize = task.size || 'M';
+                    const taskOrder = SIZE_ORDER[taskSize];
+
+                    if (this.filterMinSize) {
+                        const minOrder = SIZE_ORDER[this.filterMinSize];
+                        if (taskOrder < minOrder) return false;
+                    }
+
+                    if (this.filterMaxSize) {
+                        const maxOrder = SIZE_ORDER[this.filterMaxSize];
+                        if (taskOrder > maxOrder) return false;
+                    }
+
+                    // Category filter
+                    if (this.filterCategories.length > 0) {
+                        if (!this.filterCategories.includes(task.category)) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                });
+            }
+
             _startPolling() {
                 setInterval(async () => {
                     const newTasks = await api.getTasks() || [];
+                    const newCategories = await api.getCategories() || [];
                     const newCurrentId = await api.getCurrentTaskId();
 
                     const tasksChanged = JSON.stringify(newTasks) !== JSON.stringify(this.tasks);
+                    const catsChanged = JSON.stringify(newCategories) !== JSON.stringify(this.categories);
 
                     if (tasksChanged) {
                         this.tasks = newTasks;
-                        this.currentTaskId = newCurrentId;
-                        if (this.selectedIndex >= this.tasks.length) {
-                            this.selectedIndex = Math.max(0, this.tasks.length - 1);
-                        }
-                    } else if (newCurrentId !== this.currentTaskId) {
+                    }
+                    if (catsChanged) {
+                        this.categories = newCategories;
+                    }
+                    if (newCurrentId !== this.currentTaskId) {
                         this.currentTaskId = newCurrentId;
                     }
 
-                    // Update window counts
+                    const filtered = this._getFilteredTasks();
+                    if (this.selectedIndex >= filtered.length) {
+                        this.selectedIndex = Math.max(0, filtered.length - 1);
+                    }
+
                     const counts = {};
                     for (const task of this.tasks) {
                         counts[task.id] = await api.getWindowCount(task.id) || 0;
@@ -615,34 +1244,37 @@
 
             _setupKeyboardShortcuts() {
                 document.addEventListener('keydown', (e) => {
-                    const input = this.shadowRoot.querySelector('input');
-                    // Check composedPath to detect inputs inside shadow DOM
                     const isInInput = e.composedPath().some(el => el.tagName === 'INPUT');
+                    const filtered = this._getFilteredTasks();
 
                     if (e.key === 'ArrowUp' && !isInInput) {
                         e.preventDefault();
                         if (this.selectedIndex > 0) this.selectedIndex--;
                     } else if (e.key === 'ArrowDown' && !isInInput) {
                         e.preventDefault();
-                        if (this.selectedIndex < this.tasks.length - 1) this.selectedIndex++;
+                        if (this.selectedIndex < filtered.length - 1) this.selectedIndex++;
                     } else if (e.key === 'Enter') {
                         if (isInInput && this.newTaskTitle.trim()) {
                             this._addTask();
-                        } else if (!isInInput && this.tasks.length > 0) {
-                            this._selectTask(this.tasks[this.selectedIndex].id);
+                        } else if (!isInInput && filtered.length > 0) {
+                            this._selectTask(filtered[this.selectedIndex].id);
                         }
                     } else if (e.key === 'Delete' || (e.ctrlKey && e.key === 'd')) {
-                        if (!isInInput && this.tasks.length > 0) {
+                        if (!isInInput && filtered.length > 0) {
                             e.preventDefault();
-                            this._closeTask(this.tasks[this.selectedIndex].id);
+                            this._closeTask(filtered[this.selectedIndex].id);
                         }
                     } else if (e.ctrlKey && e.key === 'n') {
                         e.preventDefault();
+                        const input = this.shadowRoot.querySelector('input[type="text"]');
                         input?.focus();
                     } else if (e.key === 'Escape') {
-                        if (this.newTaskTitle) {
+                        if (this.showCategoryManager) {
+                            this.showCategoryManager = false;
+                        } else if (this.newTaskTitle) {
                             this.newTaskTitle = '';
                         } else {
+                            const input = this.shadowRoot.querySelector('input[type="text"]');
                             input?.blur();
                         }
                     }
@@ -650,6 +1282,8 @@
             }
 
             render() {
+                const filtered = this._getFilteredTasks();
+
                 return html`
                     <div class="top-bar">
                         <input
@@ -660,16 +1294,65 @@
                         >
                         <button @click=${this._addTask}>+</button>
                     </div>
+
+                    <div class="filter-bar">
+                        <div class="filter-group">
+                            <span class="filter-label">Size:</span>
+                            <select class="filter-select"
+                                    .value=${this.filterMinSize}
+                                    @change=${e => this.filterMinSize = e.target.value}>
+                                <option value="">Min</option>
+                                ${SIZES.map(s => html`<option value=${s}>${s}</option>`)}
+                            </select>
+                            <span class="filter-label">-</span>
+                            <select class="filter-select"
+                                    .value=${this.filterMaxSize}
+                                    @change=${e => this.filterMaxSize = e.target.value}>
+                                <option value="">Max</option>
+                                ${SIZES.map(s => html`<option value=${s}>${s}</option>`)}
+                            </select>
+                        </div>
+
+                        <div class="cat-filter">
+                            ${this.categories.map(c => html`
+                                <span class="cat-chip ${this.filterCategories.includes(c.id) ? 'active' : ''}"
+                                      @click=${() => this._toggleCategoryFilter(c.id)}>
+                                    <span class="dot" style="background: ${c.color}"></span>
+                                    ${c.name}
+                                </span>
+                            `)}
+                        </div>
+
+                        <span class="manage-btn" @click=${() => this.showCategoryManager = !this.showCategoryManager}>
+                            [${this.showCategoryManager ? 'Hide' : 'Categories'}]
+                        </span>
+                    </div>
+
+                    ${this.showCategoryManager ? html`
+                        <category-manager
+                            .categories=${this.categories}
+                            @close-manager=${() => this.showCategoryManager = false}
+                            @add-category=${this._onAddCategory}
+                            @update-category=${this._onUpdateCategory}
+                            @delete-category=${this._onDeleteCategory}
+                        ></category-manager>
+                    ` : ''}
+
                     <div class="task-list"
                          @task-select=${this._onTaskSelect}
                          @task-close=${this._onTaskClose}
                          @task-move-up=${this._onTaskMoveUp}
                          @task-move-down=${this._onTaskMoveDown}
                          @task-drop=${this._onTaskDrop}
-                         @task-rename=${this._onTaskRename}>
-                        ${this.tasks.map((task, index) => html`
+                         @task-rename=${this._onTaskRename}
+                         @task-size-change=${this._onTaskSizeChange}
+                         @task-category-change=${this._onTaskCategoryChange}>
+                        ${filtered.length === 0 ? html`
+                            <div class="no-tasks">No tasks${this.tasks.length > 0 ? ' (filtered)' : ''}</div>
+                        ` : filtered.map((task, index) => html`
                             <task-row
                                 .task=${task}
+                                .categories=${this.categories}
                                 .isCurrent=${task.id === this.currentTaskId}
                                 .isSelected=${index === this.selectedIndex}
                                 .winCount=${this.windowCounts[task.id] || 0}
@@ -677,6 +1360,14 @@
                         `)}
                     </div>
                 `;
+            }
+
+            _toggleCategoryFilter(catId) {
+                if (this.filterCategories.includes(catId)) {
+                    this.filterCategories = this.filterCategories.filter(id => id !== catId);
+                } else {
+                    this.filterCategories = [...this.filterCategories, catId];
+                }
             }
 
             async _addTask() {
@@ -726,6 +1417,38 @@
             async _onTaskRename(e) {
                 const { taskId, newTitle } = e.detail;
                 await api.renameTask(taskId, newTitle);
+                await this._refresh();
+            }
+
+            async _onTaskSizeChange(e) {
+                const { taskId, size } = e.detail;
+                await api.setTaskSize(taskId, size);
+                await this._refresh();
+            }
+
+            async _onTaskCategoryChange(e) {
+                const { taskId, categoryId } = e.detail;
+                await api.setTaskCategory(taskId, categoryId);
+                await this._refresh();
+            }
+
+            async _onAddCategory(e) {
+                const { name, color } = e.detail;
+                await api.addCategory(name, color);
+                await this._refresh();
+            }
+
+            async _onUpdateCategory(e) {
+                const { id, name, color } = e.detail;
+                await api.updateCategory(id, name, color);
+                await this._refresh();
+            }
+
+            async _onDeleteCategory(e) {
+                const { id } = e.detail;
+                await api.removeCategory(id);
+                // Remove from filter if it was selected
+                this.filterCategories = this.filterCategories.filter(cid => cid !== id);
                 await this._refresh();
             }
         }

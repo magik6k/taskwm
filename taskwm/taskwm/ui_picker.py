@@ -130,6 +130,31 @@ class PickerAPI:
         """Rename a task."""
         return self._st.rename_task(task_id, new_title)
 
+    def set_task_size(self, task_id: int, size: str) -> bool:
+        """Set task t-shirt size (XS, S, M, L, XL)."""
+        return self._st.set_task_size(task_id, size)
+
+    def set_task_category(self, task_id: int, category_id: int | None) -> bool:
+        """Set task category."""
+        return self._st.set_task_category(task_id, category_id)
+
+    def get_categories(self) -> list:
+        """Get all categories."""
+        self._st.reload()
+        return self._st.get_categories()
+
+    def add_category(self, name: str, color: str) -> int | None:
+        """Add a new category."""
+        return self._st.add_category(name, color)
+
+    def update_category(self, category_id: int, name: str, color: str) -> bool:
+        """Update a category."""
+        return self._st.update_category(category_id, name, color)
+
+    def remove_category(self, category_id: int) -> bool:
+        """Remove a category."""
+        return self._st.remove_category(category_id)
+
     def get_window_count(self, task_id: int) -> int:
         """Get window count for a task."""
         current_id = self._st.get_current_task_id()

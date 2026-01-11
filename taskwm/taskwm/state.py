@@ -98,7 +98,9 @@ class State:
             "id": task_id,
             "title": title,
             "created": int(time.time()),
-            "done": False
+            "done": False,
+            "size": "M",
+            "category": None
         }
         data["tasks"].append(task)
         self.save()
@@ -159,6 +161,97 @@ class State:
                 task["title"] = new_title
                 self.save()
                 return True
+        return False
+
+    def set_task_size(self, task_id: int, size: str) -> bool:
+        """Set task t-shirt size. Valid sizes: S, M, L."""
+        valid_sizes = ("S", "M", "L")
+        if size not in valid_sizes:
+            return False
+
+        data = self.load()
+        for task in data["tasks"]:
+            if task["id"] == task_id:
+                task["size"] = size
+                self.save()
+                return True
+        return False
+
+    def set_task_category(self, task_id: int, category_id: Optional[int]) -> bool:
+        """Set task category. Use None to clear category."""
+        data = self.load()
+        for task in data["tasks"]:
+            if task["id"] == task_id:
+                task["category"] = category_id
+                self.save()
+                return True
+        return False
+
+    # Category management
+
+    def get_categories(self) -> list:
+        """Get all categories."""
+        return self.get_setting("categories", [])
+
+    def add_category(self, name: str, color: str) -> Optional[int]:
+        """Add a new category. Returns the new category ID."""
+        name = name.strip()
+        if not name:
+            return None
+
+        data = self.load()
+        if "settings_cache" not in data:
+            data["settings_cache"] = {}
+
+        categories = data["settings_cache"].get("categories", [])
+        next_id = data["settings_cache"].get("next_category_id", 1)
+
+        category = {
+            "id": next_id,
+            "name": name,
+            "color": color
+        }
+        categories.append(category)
+
+        data["settings_cache"]["categories"] = categories
+        data["settings_cache"]["next_category_id"] = next_id + 1
+        self.save()
+
+        return next_id
+
+    def update_category(self, category_id: int, name: str, color: str) -> bool:
+        """Update a category's name and color."""
+        name = name.strip()
+        if not name:
+            return False
+
+        data = self.load()
+        categories = data.get("settings_cache", {}).get("categories", [])
+
+        for cat in categories:
+            if cat["id"] == category_id:
+                cat["name"] = name
+                cat["color"] = color
+                self.save()
+                return True
+        return False
+
+    def remove_category(self, category_id: int) -> bool:
+        """Remove a category. Clears category from all tasks using it."""
+        data = self.load()
+        categories = data.get("settings_cache", {}).get("categories", [])
+
+        original_len = len(categories)
+        categories = [c for c in categories if c["id"] != category_id]
+
+        if len(categories) < original_len:
+            data["settings_cache"]["categories"] = categories
+            # Clear category from tasks that had it
+            for task in data["tasks"]:
+                if task.get("category") == category_id:
+                    task["category"] = None
+            self.save()
+            return True
         return False
 
     def move_task_up(self, task_id: int) -> bool:

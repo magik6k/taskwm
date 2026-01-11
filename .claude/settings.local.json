@@ -4,7 +4,8 @@
       "Bash(mkdir:*)",
       "Bash(bspc query:*)",
       "Bash(xwininfo:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(grep:*)"
     ]
   }
 }
