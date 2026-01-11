@@ -2,6 +2,8 @@
 
 A task-based workflow manager for bspwm that lets you organize your work into tasks, each with its own set of windows.
 
+![Task Picker](docs/picker.png)
+
 ## Features
 
 - **Task Picker** (Super+1): A dedicated desktop for managing tasks
