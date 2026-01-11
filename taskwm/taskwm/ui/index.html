@@ -475,6 +475,38 @@
             }
         });
 
+        // Update only window counts without re-rendering
+        function updateWindowCountsOnly() {
+            const rows = taskList.querySelectorAll('.task-row');
+            rows.forEach(row => {
+                const taskId = parseInt(row.dataset.taskId, 10);
+                const winCountEl = row.querySelector('.win-count');
+                if (winCountEl) {
+                    const count = windowCounts[taskId] || 0;
+                    winCountEl.textContent = `${count}w`;
+                }
+            });
+        }
+
+        // Update current task indicator without re-rendering
+        function updateCurrentIndicator() {
+            const rows = taskList.querySelectorAll('.task-row');
+            rows.forEach(row => {
+                const taskId = parseInt(row.dataset.taskId, 10);
+                const titleEl = row.querySelector('.task-title');
+                const indicatorEl = row.querySelector('.indicator');
+                if (titleEl && indicatorEl) {
+                    const isCurrent = taskId === currentTaskId;
+                    indicatorEl.textContent = isCurrent ? '▶' : '';
+                    if (isCurrent) {
+                        titleEl.classList.add('current');
+                    } else {
+                        titleEl.classList.remove('current');
+                    }
+                }
+            });
+        }
+
         // Initial load and polling
         async function init() {
             await api.readyPromise;
@@ -495,7 +527,7 @@
 
             await refresh();
 
-            // Poll for updates
+            // Poll for updates - only re-render when tasks change
             setInterval(async () => {
                 const newTasks = await api.getTasks() || [];
                 const newCurrentId = await api.getCurrentTaskId();
@@ -503,16 +535,30 @@
                 const tasksChanged = JSON.stringify(newTasks) !== JSON.stringify(tasks);
                 const currentChanged = newCurrentId !== currentTaskId;
 
-                if (tasksChanged || currentChanged) {
+                if (tasksChanged) {
                     tasks = newTasks;
                     currentTaskId = newCurrentId;
                     if (selectedIndex >= tasks.length) {
                         selectedIndex = Math.max(0, tasks.length - 1);
                     }
-                }
+                    // Full re-render only when task list changes
+                    for (const task of tasks) {
+                        windowCounts[task.id] = await api.getWindowCount(task.id) || 0;
+                    }
+                    renderTasks();
+                } else {
+                    // Just update current indicator if it changed
+                    if (currentChanged) {
+                        currentTaskId = newCurrentId;
+                        updateCurrentIndicator();
+                    }
 
-                // Always update window counts
-                await updateWindowCounts();
+                    // Update window counts without re-rendering
+                    for (const task of tasks) {
+                        windowCounts[task.id] = await api.getWindowCount(task.id) || 0;
+                    }
+                    updateWindowCountsOnly();
+                }
             }, 500);
         }
 
