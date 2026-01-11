@@ -7,6 +7,7 @@ import signal
 import subprocess
 import threading
 import time
+import secrets
 from pathlib import Path
 
 from . import bspwm, state, config
@@ -14,6 +15,7 @@ from . import bspwm, state, config
 RUNTIME_DIR = Path.home() / ".local" / "state" / "taskwm"
 PID_FILE = RUNTIME_DIR / "daemon.pid"
 PICKER_PID_FILE = RUNTIME_DIR / "picker.pid"
+TOKEN_FILE = RUNTIME_DIR / "token"
 
 # Special desktops
 TASKS_DESKTOP = "tasks"
@@ -67,6 +69,9 @@ class Daemon:
 
         env = os.environ.copy()
         env['TASKWM_COMPONENT'] = 'picker'
+        # Workaround for WebKitGTK + NVIDIA blank window issue
+        env['WEBKIT_DISABLE_DMABUF_RENDERER'] = '1'
+        env['WEBKIT_DISABLE_COMPOSITING_MODE'] = '1'
 
         self.picker_proc = subprocess.Popen(
             [sys.executable, '-m', 'taskwm.ui_picker'],
@@ -88,10 +93,10 @@ class Daemon:
             self.start_picker()
 
     def get_picker_window_id(self):
-        """Try to find the picker window ID by WM_CLASS."""
+        """Try to find the picker window ID by window name."""
         try:
             result = subprocess.run(
-                ['xdotool', 'search', '--class', 'taskwm-picker'],
+                ['xdotool', 'search', '--name', 'taskwm - Tasks'],
                 capture_output=True, text=True, timeout=2
             )
             if result.returncode == 0 and result.stdout.strip():
@@ -197,6 +202,11 @@ class Daemon:
         RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
         PID_FILE.write_text(str(os.getpid()))
 
+        # Generate and save auth token
+        self.token = secrets.token_hex(32)
+        TOKEN_FILE.write_text(self.token)
+        os.chmod(TOKEN_FILE, 0o600)  # Only owner can read
+
         def cleanup(signum, frame):
             print("\n[daemon] Shutting down...", file=sys.stderr)
             self.running = False
@@ -207,7 +217,7 @@ class Daemon:
             if self.picker_proc:
                 self.picker_proc.terminate()
 
-            for f in [PID_FILE, PICKER_PID_FILE]:
+            for f in [PID_FILE, PICKER_PID_FILE, TOKEN_FILE]:
                 try:
                     f.unlink()
                 except Exception:
