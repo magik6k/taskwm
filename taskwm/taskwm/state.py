@@ -147,6 +147,28 @@ class State:
                 return True
         return False
 
+    def move_task_up(self, task_id: int) -> bool:
+        """Move a task up in the list. Returns True if moved."""
+        data = self.load()
+        tasks = data["tasks"]
+        for i, task in enumerate(tasks):
+            if task["id"] == task_id and i > 0:
+                tasks[i], tasks[i-1] = tasks[i-1], tasks[i]
+                self.save()
+                return True
+        return False
+
+    def move_task_down(self, task_id: int) -> bool:
+        """Move a task down in the list. Returns True if moved."""
+        data = self.load()
+        tasks = data["tasks"]
+        for i, task in enumerate(tasks):
+            if task["id"] == task_id and i < len(tasks) - 1:
+                tasks[i], tasks[i+1] = tasks[i+1], tasks[i]
+                self.save()
+                return True
+        return False
+
     # Current task management
 
     def get_current_task_id(self) -> Optional[int]:

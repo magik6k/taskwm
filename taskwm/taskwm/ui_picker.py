@@ -289,55 +289,93 @@ class TaskPicker:
 
         for task in tasks:
             frame = tk.Frame(self.task_list_frame, bg=bg)
-            frame.pack(fill=tk.X, pady=2)
+            frame.pack(fill=tk.X, pady=1)
 
             # Title label (with current indicator)
             title = task['title']
-            if len(title) > 40:
-                title = title[:37] + "..."
+            if len(title) > 50:
+                title = title[:47] + "..."
 
-            prefix = ">" if task['id'] == current_id else " "
+            prefix = "▶" if task['id'] == current_id else "  "
             label = tk.Label(
                 frame,
                 text=f"{prefix} {title}",
                 bg=bg,
-                fg=fg,
+                fg=accent if task['id'] == current_id else fg,
                 font=(font_family, font_size),
                 anchor=tk.W
             )
-            label.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+            label.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 10))
+
+            # Controls frame (can be hidden for confirm)
+            controls = tk.Frame(frame, bg=bg)
+            controls.pack(side=tk.RIGHT)
+
+            # Window count
+            if task['id'] == current_id:
+                win_count = bspwm.get_window_count(ACTIVE_DESKTOP)
+            else:
+                desktop = bspwm.task_desktop_name(task['id'])
+                win_count = bspwm.get_window_count(desktop) if bspwm.desktop_exists(desktop) else 0
+
+            win_label = tk.Label(
+                controls,
+                text=f"{win_count}w",
+                bg=bg,
+                fg='#666666',
+                font=(font_family, font_size - 1),
+                width=3
+            )
+            win_label.pack(side=tk.LEFT, padx=(0, 8))
+
+            # Move buttons - smaller, subtle
+            up_btn = tk.Label(
+                controls, text="↑", bg=bg, fg='#555555',
+                font=(font_family, font_size - 1), cursor="hand2"
+            )
+            up_btn.pack(side=tk.LEFT)
+            up_btn.bind('<Button-1>', lambda e, tid=task['id']: self.move_task_up(tid))
+
+            down_btn = tk.Label(
+                controls, text="↓", bg=bg, fg='#555555',
+                font=(font_family, font_size - 1), cursor="hand2"
+            )
+            down_btn.pack(side=tk.LEFT, padx=(0, 8))
+            down_btn.bind('<Button-1>', lambda e, tid=task['id']: self.move_task_down(tid))
 
             # Select button
-            select_btn = tk.Button(
-                frame,
-                text="Select",
-                bg=button_bg,
-                fg=fg,
-                activebackground=accent,
-                activeforeground='#000000',
+            select_btn = tk.Label(
+                controls,
+                text="[Select]",
+                bg=bg,
+                fg='#888888',
                 font=(font_family, font_size - 1),
-                relief=tk.FLAT,
-                command=lambda tid=task['id']: self.select_task(tid)
+                cursor="hand2"
             )
-            select_btn.pack(side=tk.RIGHT, padx=2)
+            select_btn.pack(side=tk.LEFT, padx=(0, 4))
+            select_btn.bind('<Button-1>', lambda e, tid=task['id']: self.select_task(tid))
+            select_btn.bind('<Enter>', lambda e, w=select_btn: w.configure(fg=accent))
+            select_btn.bind('<Leave>', lambda e, w=select_btn: w.configure(fg='#888888'))
 
             # Close button
-            close_btn = tk.Button(
-                frame,
-                text="Close",
-                bg=button_bg,
-                fg=fg,
-                activebackground='#aa3333',
-                activeforeground='#ffffff',
+            close_btn = tk.Label(
+                controls,
+                text="[Close]",
+                bg=bg,
+                fg='#664444',
                 font=(font_family, font_size - 1),
-                relief=tk.FLAT,
-                command=lambda tid=task['id']: self.close_task(tid)
+                cursor="hand2"
             )
-            close_btn.pack(side=tk.RIGHT, padx=2)
+            close_btn.pack(side=tk.LEFT)
+            close_btn.bind('<Button-1>', lambda e, tid=task['id']: self.close_task(tid))
+            close_btn.bind('<Enter>', lambda e, w=close_btn: w.configure(fg='#aa4444'))
+            close_btn.bind('<Leave>', lambda e, w=close_btn: w.configure(fg='#664444'))
 
             self.task_frames.append({
                 'frame': frame,
                 'label': label,
+                'win_label': win_label,
+                'controls': controls,
                 'task_id': task['id']
             })
 
@@ -346,6 +384,16 @@ class TaskPicker:
             self.selected_index = max(0, len(self.task_frames) - 1)
 
         self.update_selection()
+
+    def move_task_up(self, task_id: int):
+        """Move a task up in the list."""
+        self.st.move_task_up(task_id)
+        self.refresh_tasks()
+
+    def move_task_down(self, task_id: int):
+        """Move a task down in the list."""
+        self.st.move_task_down(task_id)
+        self.refresh_tasks()
 
     def select_task(self, task_id: int):
         """Select a task and switch to active desktop."""
@@ -376,39 +424,68 @@ class TaskPicker:
             task_id = self.task_frames[self.selected_index]['task_id']
             self.select_task(task_id)
 
-    def show_inline_confirm(self, message: str, on_confirm):
-        """Show inline confirmation bar at bottom of picker."""
+    def show_inline_confirm(self, task_id: int, message: str, on_confirm):
+        """Show inline confirmation replacing task controls."""
+        # Find the task frame
+        tf = None
+        for t in self.task_frames:
+            if t['task_id'] == task_id:
+                tf = t
+                break
+        if not tf:
+            return
+
+        # Cancel any existing confirm
+        if hasattr(self, '_confirm_task_id') and self._confirm_task_id:
+            self._cancel_confirm()
+
+        self._confirm_task_id = task_id
+        self._confirm_controls = tf['controls']
+        self._confirm_callback = on_confirm
+
+        # Hide controls
+        tf['controls'].pack_forget()
+
+        # Create confirm frame in its place
+        bg = self.theme.get('bg', '#111111')
+        fg = self.theme.get('fg', '#e6e6e6')
+
+        self._confirm_frame = tk.Frame(tf['frame'], bg=bg)
+        self._confirm_frame.pack(side=tk.RIGHT)
+
+        msg_label = tk.Label(self._confirm_frame, text=message, bg=bg, fg='#ff6666',
+                            font=(self.theme.get('font', 'monospace 10').rsplit(' ', 1)[0], 9))
+        msg_label.pack(side=tk.LEFT, padx=(0, 8))
+
+        yes_btn = tk.Label(self._confirm_frame, text="[Yes]", bg=bg, fg='#ff6666',
+                          cursor="hand2")
+        yes_btn.pack(side=tk.LEFT, padx=(0, 4))
+        yes_btn.bind('<Button-1>', lambda e: self._do_confirm())
+        yes_btn.bind('<Enter>', lambda e, w=yes_btn: w.configure(fg='#ff8888'))
+        yes_btn.bind('<Leave>', lambda e, w=yes_btn: w.configure(fg='#ff6666'))
+
+        no_btn = tk.Label(self._confirm_frame, text="[No]", bg=bg, fg='#888888',
+                         cursor="hand2")
+        no_btn.pack(side=tk.LEFT)
+        no_btn.bind('<Button-1>', lambda e: self._cancel_confirm())
+        no_btn.bind('<Enter>', lambda e, w=no_btn: w.configure(fg='#aaaaaa'))
+        no_btn.bind('<Leave>', lambda e, w=no_btn: w.configure(fg='#888888'))
+
+    def _cancel_confirm(self):
+        """Cancel inline confirmation."""
         if hasattr(self, '_confirm_frame') and self._confirm_frame:
             self._confirm_frame.destroy()
-
-        bg = self.theme.get('select_bg', '#333333')
-        fg = self.theme.get('fg', '#e6e6e6')
-        warn_color = '#ff6666'
-
-        self._confirm_frame = tk.Frame(self.main_frame, bg=bg)
-        self._confirm_frame.pack(fill=tk.X, pady=(10, 0))
-
-        msg_label = tk.Label(self._confirm_frame, text=message, bg=bg, fg=warn_color)
-        msg_label.pack(side=tk.LEFT, padx=10, pady=8)
-
-        def do_cancel():
-            self._confirm_frame.destroy()
             self._confirm_frame = None
+        if hasattr(self, '_confirm_controls') and self._confirm_controls:
+            self._confirm_controls.pack(side=tk.RIGHT)
+        self._confirm_task_id = None
 
-        def do_confirm():
-            self._confirm_frame.destroy()
-            self._confirm_frame = None
-            on_confirm()
-
-        no_btn = tk.Button(self._confirm_frame, text="Cancel", command=do_cancel, width=8,
-                          bg=self.theme.get('button_bg', '#222222'), fg=fg)
-        no_btn.pack(side=tk.RIGHT, padx=5, pady=5)
-
-        yes_btn = tk.Button(self._confirm_frame, text="Yes, Close", command=do_confirm, width=10,
-                           bg='#663333', fg=fg)
-        yes_btn.pack(side=tk.RIGHT, padx=5, pady=5)
-
-        yes_btn.focus_set()
+    def _do_confirm(self):
+        """Execute confirmation callback."""
+        callback = self._confirm_callback if hasattr(self, '_confirm_callback') else None
+        self._cancel_confirm()
+        if callback:
+            callback()
 
     def close_task(self, task_id: int):
         """Close/remove a task with confirmation."""
@@ -428,7 +505,8 @@ class TaskPicker:
 
         if window_count > 0:
             self.show_inline_confirm(
-                f"Close {window_count} window(s)?",
+                task_id,
+                f"Close {window_count}w?",
                 lambda: self._do_close_task(task_id, current_id)
             )
             return
@@ -470,9 +548,20 @@ class TaskPicker:
         except bspwm.BspwmError as e:
             messagebox.showerror("Error", str(e), parent=self.root)
 
+    def _update_window_counts(self):
+        """Update window count labels without full refresh."""
+        current_id = self.st.get_current_task_id()
+        for tf in self.task_frames:
+            task_id = tf['task_id']
+            if task_id == current_id:
+                win_count = bspwm.get_window_count(ACTIVE_DESKTOP)
+            else:
+                desktop = bspwm.task_desktop_name(task_id)
+                win_count = bspwm.get_window_count(desktop) if bspwm.desktop_exists(desktop) else 0
+            tf['win_label'].configure(text=f"{win_count} win")
+
     def poll_state(self):
         """Poll state file for changes - only refresh if state changed."""
-        # Check if state file was modified
         try:
             import os
             state_file = self.st.state_file
@@ -485,8 +574,9 @@ class TaskPicker:
                 self._last_mtime = mtime
                 self.refresh_tasks()
             else:
-                # Just update current task indicator without full rebuild
+                # Update current task indicator and window counts
                 self._update_current_indicator()
+                self._update_window_counts()
         except Exception:
             pass
 
