@@ -262,7 +262,7 @@ class TaskPicker:
             self.entry.delete(0, tk.END)
             self.refresh_tasks()
         except ValueError as e:
-            messagebox.showerror("Error", str(e))
+            messagebox.showerror("Error", str(e), parent=self.root)
 
     def refresh_tasks(self):
         """Refresh the task list from state."""
@@ -355,7 +355,7 @@ class TaskPicker:
                 monitor = bspwm.get_focused_monitor()
                 self.st.set_setting('monitor', monitor)
             except bspwm.BspwmError:
-                messagebox.showerror("Error", "Could not determine monitor")
+                messagebox.showerror("Error", "Could not determine monitor", parent=self.root)
                 return
 
         old_task_id = self.st.get_current_task_id()
@@ -368,13 +368,47 @@ class TaskPicker:
             # Switch to active desktop
             bspwm.focus_desktop(ACTIVE_DESKTOP)
         except bspwm.BspwmError as e:
-            messagebox.showerror("Error", str(e))
+            messagebox.showerror("Error", str(e), parent=self.root)
 
     def select_current(self):
         """Select the currently highlighted task."""
         if self.task_frames:
             task_id = self.task_frames[self.selected_index]['task_id']
             self.select_task(task_id)
+
+    def show_inline_confirm(self, message: str, on_confirm):
+        """Show inline confirmation bar at bottom of picker."""
+        if hasattr(self, '_confirm_frame') and self._confirm_frame:
+            self._confirm_frame.destroy()
+
+        bg = self.theme.get('select_bg', '#333333')
+        fg = self.theme.get('fg', '#e6e6e6')
+        warn_color = '#ff6666'
+
+        self._confirm_frame = tk.Frame(self.main_frame, bg=bg)
+        self._confirm_frame.pack(fill=tk.X, pady=(10, 0))
+
+        msg_label = tk.Label(self._confirm_frame, text=message, bg=bg, fg=warn_color)
+        msg_label.pack(side=tk.LEFT, padx=10, pady=8)
+
+        def do_cancel():
+            self._confirm_frame.destroy()
+            self._confirm_frame = None
+
+        def do_confirm():
+            self._confirm_frame.destroy()
+            self._confirm_frame = None
+            on_confirm()
+
+        no_btn = tk.Button(self._confirm_frame, text="Cancel", command=do_cancel, width=8,
+                          bg=self.theme.get('button_bg', '#222222'), fg=fg)
+        no_btn.pack(side=tk.RIGHT, padx=5, pady=5)
+
+        yes_btn = tk.Button(self._confirm_frame, text="Yes, Close", command=do_confirm, width=10,
+                           bg='#663333', fg=fg)
+        yes_btn.pack(side=tk.RIGHT, padx=5, pady=5)
+
+        yes_btn.focus_set()
 
     def close_task(self, task_id: int):
         """Close/remove a task with confirmation."""
@@ -393,13 +427,15 @@ class TaskPicker:
                 window_count = bspwm.get_window_count(desktop)
 
         if window_count > 0:
-            result = messagebox.askyesno(
-                "Confirm Close",
-                f"This will close {window_count} window(s).\nAre you sure?"
+            self.show_inline_confirm(
+                f"Close {window_count} window(s)?",
+                lambda: self._do_close_task(task_id, current_id)
             )
-            if not result:
-                return
+            return
 
+        self._do_close_task(task_id, current_id)
+
+    def _do_close_task(self, task_id: int, current_id: int):
         try:
             # Close windows
             if task_id == current_id:
@@ -418,9 +454,21 @@ class TaskPicker:
             # Remove desktop
             bspwm.remove_task_desktop(task_id)
 
+            # If we closed the current task, auto-select next one
+            if task_id == current_id:
+                remaining = self.st.list_tasks(include_done=False)
+                if remaining:
+                    next_task = remaining[0]
+                    monitor = self.st.get_setting('monitor') or self.cfg.monitor
+                    if monitor:
+                        bspwm.swap_task_windows(monitor, None, next_task['id'])
+                        self.st.set_current_task_id(next_task['id'])
+                else:
+                    self.st.set_current_task_id(None)
+
             self.refresh_tasks()
         except bspwm.BspwmError as e:
-            messagebox.showerror("Error", str(e))
+            messagebox.showerror("Error", str(e), parent=self.root)
 
     def poll_state(self):
         """Poll state file for changes - only refresh if state changed."""

@@ -120,7 +120,12 @@ class Daemon:
 
         for win in windows:
             win_int = self._normalize_window_id(win)
+            # Skip if it matches picker window ID
             if picker_id_int and win_int == picker_id_int:
+                continue
+
+            # Also skip if it's a taskwm window (by WM_CLASS)
+            if bspwm._is_taskwm_window(win):
                 continue
 
             target = self.cfg.move_stray_to

@@ -117,8 +117,17 @@ def cmd_done(args):
         # Remove task desktop
         bspwm.remove_task_desktop(task_id)
 
-        # Clear current task
-        s.set_current_task_id(None)
+        # Auto-select next task if available
+        remaining_tasks = s.list_tasks(include_done=False)
+        if remaining_tasks:
+            next_task = remaining_tasks[0]
+            next_task_id = next_task['id']
+            # Swap windows from next task to active
+            bspwm.swap_task_windows(monitor, None, next_task_id)
+            s.set_current_task_id(next_task_id)
+        else:
+            # No tasks left
+            s.set_current_task_id(None)
 
         return 0
     except bspwm.BspwmError as e:

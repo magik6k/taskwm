@@ -266,13 +266,14 @@ def swap_task_windows(monitor: str, old_task_id: Optional[int], new_task_id: Opt
 
 
 def close_all_windows(desktop: str, force: bool = False):
-    """Close all windows on a desktop."""
+    """Close all windows on a desktop.
+
+    Always uses graceful close (-c) to avoid killing entire process trees
+    (e.g., terminator runs one process for all windows).
+    """
     windows = list_windows(desktop)
     for win in windows:
-        if force:
-            kill_window(win)
-        else:
-            close_window(win)
+        close_window(win)  # Always graceful, never kill
 
 
 def get_window_count(desktop: str) -> int:
