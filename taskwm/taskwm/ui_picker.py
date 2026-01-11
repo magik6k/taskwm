@@ -296,13 +296,13 @@ class TaskPicker:
             if len(title) > 50:
                 title = title[:47] + "..."
 
-            prefix = "▶" if task['id'] == current_id else "  "
+            prefix = "▶ " if task['id'] == current_id else "   "
             label = tk.Label(
                 frame,
-                text=f"{prefix} {title}",
+                text=f"{prefix}{title}",
                 bg=bg,
                 fg=accent if task['id'] == current_id else fg,
-                font=(font_family, font_size),
+                font=(font_family, font_size + 3),
                 anchor=tk.W
             )
             label.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 10))
@@ -318,30 +318,35 @@ class TaskPicker:
                 desktop = bspwm.task_desktop_name(task['id'])
                 win_count = bspwm.get_window_count(desktop) if bspwm.desktop_exists(desktop) else 0
 
+            ctrl_font_size = font_size + 2
+
             win_label = tk.Label(
                 controls,
                 text=f"{win_count}w",
                 bg=bg,
                 fg='#666666',
-                font=(font_family, font_size - 1),
-                width=3
+                font=(font_family, ctrl_font_size)
             )
-            win_label.pack(side=tk.LEFT, padx=(0, 8))
+            win_label.pack(side=tk.LEFT, padx=(0, 12))
 
-            # Move buttons - smaller, subtle
+            # Move buttons
             up_btn = tk.Label(
                 controls, text="↑", bg=bg, fg='#555555',
-                font=(font_family, font_size - 1), cursor="hand2"
+                font=(font_family, ctrl_font_size + 4), cursor="hand2"
             )
             up_btn.pack(side=tk.LEFT)
             up_btn.bind('<Button-1>', lambda e, tid=task['id']: self.move_task_up(tid))
+            up_btn.bind('<Enter>', lambda e, w=up_btn: w.configure(fg='#888888'))
+            up_btn.bind('<Leave>', lambda e, w=up_btn: w.configure(fg='#555555'))
 
             down_btn = tk.Label(
                 controls, text="↓", bg=bg, fg='#555555',
-                font=(font_family, font_size - 1), cursor="hand2"
+                font=(font_family, ctrl_font_size + 4), cursor="hand2"
             )
-            down_btn.pack(side=tk.LEFT, padx=(0, 8))
+            down_btn.pack(side=tk.LEFT, padx=(0, 12))
             down_btn.bind('<Button-1>', lambda e, tid=task['id']: self.move_task_down(tid))
+            down_btn.bind('<Enter>', lambda e, w=down_btn: w.configure(fg='#888888'))
+            down_btn.bind('<Leave>', lambda e, w=down_btn: w.configure(fg='#555555'))
 
             # Select button
             select_btn = tk.Label(
@@ -349,10 +354,10 @@ class TaskPicker:
                 text="[Select]",
                 bg=bg,
                 fg='#888888',
-                font=(font_family, font_size - 1),
+                font=(font_family, ctrl_font_size),
                 cursor="hand2"
             )
-            select_btn.pack(side=tk.LEFT, padx=(0, 4))
+            select_btn.pack(side=tk.LEFT, padx=(0, 6))
             select_btn.bind('<Button-1>', lambda e, tid=task['id']: self.select_task(tid))
             select_btn.bind('<Enter>', lambda e, w=select_btn: w.configure(fg=accent))
             select_btn.bind('<Leave>', lambda e, w=select_btn: w.configure(fg='#888888'))
@@ -363,10 +368,10 @@ class TaskPicker:
                 text="[Close]",
                 bg=bg,
                 fg='#664444',
-                font=(font_family, font_size - 1),
+                font=(font_family, ctrl_font_size),
                 cursor="hand2"
             )
-            close_btn.pack(side=tk.LEFT)
+            close_btn.pack(side=tk.LEFT, padx=(0, 5))
             close_btn.bind('<Button-1>', lambda e, tid=task['id']: self.close_task(tid))
             close_btn.bind('<Enter>', lambda e, w=close_btn: w.configure(fg='#aa4444'))
             close_btn.bind('<Leave>', lambda e, w=close_btn: w.configure(fg='#664444'))
@@ -587,25 +592,25 @@ class TaskPicker:
         try:
             self.st.reload()
             current_id = self.st.get_current_task_id()
+            accent = self.theme.get('accent', '#66aaff')
+            fg = self.theme.get('fg', '#e6e6e6')
 
             # Find index of current task and update selection to match
             for i, tf in enumerate(self.task_frames):
                 task_id = tf['task_id']
                 label = tf['label']
-                # Get current text and update prefix
+                # Get current text and strip any prefix (▶ or spaces)
                 text = label.cget('text')
-                if text.startswith('>'):
-                    text = ' ' + text[1:]
-                elif text.startswith(' '):
-                    pass
+                if text.startswith('▶'):
+                    text = text[2:]  # Remove "▶ "
                 else:
-                    text = ' ' + text
+                    text = text.lstrip()
 
                 if task_id == current_id:
-                    label.configure(text='>' + text[1:])
-                    self.selected_index = i  # Move selection to current task
+                    label.configure(text=f'▶ {text}', fg=accent)
+                    self.selected_index = i
                 else:
-                    label.configure(text=' ' + text[1:])
+                    label.configure(text=f'   {text}', fg=fg)
 
             # Update visual selection
             self.update_selection()
