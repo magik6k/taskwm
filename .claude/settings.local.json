@@ -5,7 +5,12 @@
       "Bash(bspc query:*)",
       "Bash(xwininfo:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebFetch(domain:www.untitledui.com)",
+      "WebFetch(domain:www.numberanalytics.com)",
+      "WebSearch",
+      "WebFetch(domain:www.smashingmagazine.com)",
+      "Bash(python -m taskwm.daemon:*)"
     ]
   }
 }

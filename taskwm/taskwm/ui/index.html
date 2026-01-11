@@ -4,18 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>taskwm - Tasks</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@350;400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #111111;
-            --fg: #e6e6e6;
-            --accent: #66aaff;
-            --button-bg: #222222;
+            --bg: #131313;
+            --fg: #c8c8c8;
+            --fg-dim: #a0a0a0;
+            --accent: #5a9fd4;
+            --accent-dim: #4a8ab8;
+            --button-bg: #1e1e1e;
             --entry-bg: #1a1a1a;
-            --select-bg: #333333;
-            --border: #333333;
-            --muted: #666666;
-            --danger: #aa4444;
-            --danger-dim: #664444;
+            --select-bg: #2a2a2a;
+            --border: #2d2d2d;
+            --muted: #707070;
+            --danger: #c45555;
+            --danger-dim: #804040;
         }
 
         * {
@@ -25,12 +30,18 @@
         }
 
         body {
-            font-family: monospace;
-            font-size: 13px;
-            background: var(--bg);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 1.4;
+            letter-spacing: 0.01em;
+            background: #0a0a0a;
             color: var(--fg);
             height: 100vh;
             overflow: hidden;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         /* Global select styling */
@@ -54,6 +65,9 @@
             flex-direction: column;
             height: 100vh;
             padding: 10px;
+            max-width: 2000px;
+            margin: 0 auto;
+            background: var(--bg);
         }
     </style>
 </head>
@@ -181,21 +195,25 @@
 
                 .task-title {
                     flex: 1;
-                    font-size: 16px;
+                    font-size: 15px;
+                    font-weight: 400;
                     cursor: pointer;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     color: var(--fg);
+                    letter-spacing: 0.01em;
                 }
 
                 .task-title.current {
                     color: var(--accent);
+                    font-weight: 450;
                 }
 
                 .indicator {
                     display: inline-block;
-                    width: 20px;
+                    width: 18px;
+                    opacity: 0.8;
                 }
 
                 /* Size gauge - visual bar indicator */
@@ -219,10 +237,14 @@
                 .size-bar.l { width: 100px; }
 
                 .size-label {
-                    font-size: 14px;
-                    color: var(--fg);
-                    min-width: 20px;
-                    font-weight: bold;
+                    font-family: 'Inter', sans-serif;
+                    font-size: 13px;
+                    font-weight: 500;
+                    color: var(--muted);
+                    min-width: 18px;
+                    letter-spacing: 0.08em;
+                    text-rendering: optimizeLegibility;
+                    -webkit-font-smoothing: antialiased;
                 }
 
                 .size-gauge:hover .size-bar {
@@ -287,32 +309,38 @@
 
                 .win-count {
                     color: var(--muted);
-                    font-size: 14px;
-                    min-width: 35px;
+                    font-size: 13px;
+                    font-weight: 400;
+                    font-variant-numeric: tabular-nums;
+                    min-width: 32px;
                     text-align: right;
+                    letter-spacing: 0.02em;
                 }
 
                 .controls {
                     display: flex;
                     align-items: center;
-                    gap: 4px;
+                    gap: 6px;
                 }
 
                 .ctrl-btn {
-                    color: #555;
+                    color: var(--muted);
                     cursor: pointer;
                     padding: 2px 4px;
-                    font-size: 18px;
+                    font-size: 16px;
                     user-select: none;
+                    transition: color 0.1s;
                 }
 
                 .ctrl-btn:hover {
-                    color: #888;
+                    color: var(--fg-dim);
                 }
 
                 .ctrl-btn.select {
-                    color: #888;
-                    font-size: 14px;
+                    color: var(--fg-dim);
+                    font-size: 13px;
+                    font-weight: 450;
+                    letter-spacing: 0.02em;
                 }
 
                 .ctrl-btn.select:hover {
@@ -321,7 +349,9 @@
 
                 .ctrl-btn.close {
                     color: var(--danger-dim);
-                    font-size: 14px;
+                    font-size: 13px;
+                    font-weight: 450;
+                    letter-spacing: 0.02em;
                 }
 
                 .ctrl-btn.close:hover {
@@ -331,35 +361,44 @@
                 .confirm-bar {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
+                    gap: 10px;
                 }
 
                 .confirm-bar .msg {
-                    color: #ff6666;
-                    font-size: 12px;
+                    color: var(--danger);
+                    font-size: 13px;
+                    font-weight: 450;
                 }
 
                 .confirm-bar .yes {
-                    color: #ff6666;
+                    color: var(--danger);
+                    font-size: 13px;
+                    font-weight: 500;
                     cursor: pointer;
+                    letter-spacing: 0.02em;
                 }
 
                 .confirm-bar .yes:hover {
-                    color: #ff8888;
+                    color: #e07070;
                 }
 
                 .confirm-bar .no {
-                    color: #888;
+                    color: var(--muted);
+                    font-size: 13px;
+                    font-weight: 450;
                     cursor: pointer;
+                    letter-spacing: 0.02em;
                 }
 
                 .confirm-bar .no:hover {
-                    color: #aaa;
+                    color: var(--fg-dim);
                 }
 
                 .ctrl-btn.edit {
-                    color: #888;
-                    font-size: 14px;
+                    color: var(--fg-dim);
+                    font-size: 13px;
+                    font-weight: 450;
+                    letter-spacing: 0.02em;
                 }
 
                 .ctrl-btn.edit:hover {
@@ -369,38 +408,48 @@
                 .edit-input {
                     flex: 1;
                     background: var(--entry-bg);
-                    border: 1px solid var(--accent);
+                    border: 1px solid var(--accent-dim);
                     color: var(--fg);
-                    padding: 4px 8px;
+                    padding: 6px 10px;
                     font-family: inherit;
                     font-size: 14px;
+                    font-weight: 400;
                     outline: none;
+                    letter-spacing: 0.01em;
+                }
+
+                .edit-input:focus {
+                    border-color: var(--accent);
                 }
 
                 .edit-bar {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
+                    gap: 10px;
                 }
 
                 .edit-bar .save {
                     color: var(--accent);
                     cursor: pointer;
-                    font-size: 14px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    letter-spacing: 0.02em;
                 }
 
                 .edit-bar .save:hover {
-                    color: #88ccff;
+                    color: #7ab8e0;
                 }
 
                 .edit-bar .cancel {
-                    color: #888;
+                    color: var(--muted);
                     cursor: pointer;
-                    font-size: 14px;
+                    font-size: 13px;
+                    font-weight: 450;
+                    letter-spacing: 0.02em;
                 }
 
                 .edit-bar .cancel:hover {
-                    color: #aaa;
+                    color: var(--fg-dim);
                 }
             `;
 
@@ -422,9 +471,6 @@
             }
 
             render() {
-                const title = this.task.title.length > 40
-                    ? this.task.title.slice(0, 37) + '...'
-                    : this.task.title;
                 const catColor = this._getCategoryColor();
 
                 return html`
@@ -440,7 +486,7 @@
                             <span class="drag-handle">⠿</span>
                             <span class="task-title ${this.isCurrent ? 'current' : ''}" @click=${this._onSelect}>
                                 <span class="indicator">${this.isCurrent ? '▶' : ''}</span>
-                                ${title}
+                                ${this.task.title}
                             </span>
                             ${this._renderSizeGauge()}
                             ${this._renderCategorySelect()}
@@ -780,46 +826,50 @@
                 .manager {
                     background: var(--bg);
                     border: 1px solid var(--border);
-                    padding: 12px;
-                    margin-bottom: 10px;
+                    padding: 14px;
+                    margin-bottom: 12px;
                 }
 
                 .header {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    margin-bottom: 10px;
-                    padding-bottom: 8px;
+                    margin-bottom: 12px;
+                    padding-bottom: 10px;
                     border-bottom: 1px solid var(--border);
                 }
 
                 .header h3 {
                     margin: 0;
-                    font-size: 14px;
-                    font-weight: normal;
+                    font-size: 13px;
+                    font-weight: 500;
+                    color: var(--fg-dim);
+                    letter-spacing: 0.03em;
                 }
 
                 .close-btn {
                     color: var(--muted);
                     cursor: pointer;
-                    font-size: 16px;
+                    font-size: 18px;
+                    line-height: 1;
+                    transition: color 0.15s;
                 }
 
                 .close-btn:hover {
-                    color: var(--fg);
+                    color: var(--fg-dim);
                 }
 
                 .cat-list {
                     display: flex;
                     flex-direction: column;
-                    gap: 6px;
-                    margin-bottom: 10px;
+                    gap: 8px;
+                    margin-bottom: 12px;
                 }
 
                 .cat-item {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
+                    gap: 10px;
                 }
 
                 .cat-name {
@@ -827,20 +877,25 @@
                     background: var(--entry-bg);
                     border: 1px solid var(--border);
                     color: var(--fg);
-                    padding: 4px 8px;
+                    padding: 6px 10px;
                     font-family: inherit;
                     font-size: 13px;
+                    font-weight: 400;
                     outline: none;
+                    letter-spacing: 0.01em;
                 }
 
                 .cat-name:focus {
-                    border-color: var(--accent);
+                    border-color: var(--accent-dim);
                 }
 
                 .cat-delete {
                     color: var(--danger-dim);
                     cursor: pointer;
-                    font-size: 14px;
+                    font-size: 13px;
+                    font-weight: 450;
+                    letter-spacing: 0.02em;
+                    transition: color 0.15s;
                 }
 
                 .cat-delete:hover {
@@ -850,19 +905,22 @@
                 .add-row {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
-                    padding-top: 8px;
+                    gap: 10px;
+                    padding-top: 10px;
                     border-top: 1px solid var(--border);
                 }
 
                 .add-btn {
                     color: var(--accent);
                     cursor: pointer;
-                    font-size: 14px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    letter-spacing: 0.02em;
+                    transition: color 0.15s;
                 }
 
                 .add-btn:hover {
-                    color: #88ccff;
+                    color: #7ab8e0;
                 }
             `;
 
@@ -990,63 +1048,77 @@
                     background: var(--entry-bg);
                     border: 1px solid var(--border);
                     color: var(--fg);
-                    padding: 8px 12px;
+                    padding: 10px 14px;
                     font-family: inherit;
-                    font-size: inherit;
+                    font-size: 14px;
+                    font-weight: 400;
                     outline: none;
+                    letter-spacing: 0.01em;
+                }
+
+                .top-bar input[type="text"]::placeholder {
+                    color: var(--muted);
+                    font-weight: 400;
                 }
 
                 .top-bar input[type="text"]:focus {
-                    border-color: var(--accent);
+                    border-color: var(--accent-dim);
                 }
 
                 .top-bar button {
                     background: var(--button-bg);
-                    border: none;
-                    color: var(--fg);
-                    padding: 8px 16px;
+                    border: 1px solid var(--border);
+                    color: var(--fg-dim);
+                    padding: 10px 18px;
                     font-family: inherit;
-                    font-size: inherit;
+                    font-size: 16px;
+                    font-weight: 500;
                     cursor: pointer;
+                    transition: all 0.15s;
                 }
 
                 .top-bar button:hover {
-                    background: var(--accent);
-                    color: #000;
+                    background: var(--accent-dim);
+                    border-color: var(--accent-dim);
+                    color: var(--bg);
                 }
 
                 .filter-bar {
                     display: flex;
-                    gap: 10px;
+                    gap: 12px;
                     align-items: center;
-                    margin-bottom: 10px;
+                    margin-bottom: 12px;
                     flex-wrap: wrap;
                 }
 
                 .filter-group {
                     display: flex;
                     align-items: center;
-                    gap: 4px;
+                    gap: 6px;
                 }
 
                 .filter-label {
                     color: var(--muted);
                     font-size: 12px;
+                    font-weight: 450;
+                    letter-spacing: 0.03em;
                 }
 
                 .filter-select {
                     background: var(--entry-bg);
                     border: 1px solid var(--border);
-                    color: var(--fg);
-                    padding: 4px 8px;
+                    color: var(--fg-dim);
+                    padding: 5px 10px;
                     font-family: inherit;
                     font-size: 12px;
+                    font-weight: 450;
                     cursor: pointer;
                     outline: none;
                     -webkit-appearance: none;
                     -moz-appearance: none;
                     appearance: none;
                     border-radius: 0;
+                    letter-spacing: 0.02em;
                 }
 
                 .filter-select:hover {
@@ -1060,25 +1132,32 @@
 
                 .cat-filter {
                     display: flex;
-                    gap: 4px;
+                    gap: 6px;
                     flex-wrap: wrap;
                 }
 
                 .cat-chip {
                     display: inline-flex;
                     align-items: center;
-                    gap: 4px;
-                    padding: 2px 8px;
-                    border-radius: 10px;
+                    gap: 5px;
+                    padding: 4px 10px;
+                    border-radius: 12px;
                     font-size: 12px;
+                    font-weight: 450;
                     cursor: pointer;
                     border: 1px solid var(--border);
                     background: var(--entry-bg);
                     color: var(--muted);
+                    letter-spacing: 0.02em;
+                    transition: all 0.15s;
+                }
+
+                .cat-chip:hover {
+                    border-color: var(--muted);
                 }
 
                 .cat-chip.active {
-                    border-color: var(--accent);
+                    border-color: var(--accent-dim);
                     color: var(--fg);
                 }
 
@@ -1092,7 +1171,10 @@
                     color: var(--muted);
                     cursor: pointer;
                     font-size: 12px;
+                    font-weight: 450;
                     margin-left: auto;
+                    letter-spacing: 0.02em;
+                    transition: color 0.15s;
                 }
 
                 .manage-btn:hover {

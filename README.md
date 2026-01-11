@@ -21,6 +21,7 @@ A task-based workflow manager for bspwm that lets you organize your work into ta
 - bspwm / bspc
 - xdotool (for window ID detection)
 - polybar (for status bar integration)
+- Inter font (for picker UI typography)
 
 **Optional:**
 - xprop (for WM_CLASS inspection)
@@ -28,7 +29,7 @@ A task-based workflow manager for bspwm that lets you organize your work into ta
 ### Installing on Arch Linux
 
 ```sh
-sudo pacman -S python webkit2gtk-4.1 bspwm xdotool polybar
+sudo pacman -S python webkit2gtk-4.1 bspwm xdotool polybar inter-font
 pip install pywebview
 ```
 
