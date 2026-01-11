@@ -234,6 +234,86 @@ def cmd_status(args):
     return 0
 
 
+def cmd_next(args):
+    """Select next task in list."""
+    s = state.get_state()
+    cfg = config.get_config()
+
+    tasks = s.list_tasks(include_done=False)
+    if not tasks:
+        print("Error: No tasks", file=sys.stderr)
+        return 1
+
+    current_id = s.get_current_task_id()
+
+    # Find current index
+    current_idx = -1
+    for i, t in enumerate(tasks):
+        if t['id'] == current_id:
+            current_idx = i
+            break
+
+    # Get next task (wrap around)
+    next_idx = (current_idx + 1) % len(tasks)
+    next_task = tasks[next_idx]
+
+    if next_task['id'] == current_id:
+        # Only one task
+        return 0
+
+    monitor = s.get_setting('monitor') or cfg.monitor
+    if not monitor:
+        monitor = bspwm.get_focused_monitor()
+
+    try:
+        bspwm.swap_task_windows(monitor, current_id, next_task['id'])
+        s.set_current_task_id(next_task['id'])
+        return 0
+    except bspwm.BspwmError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_prev(args):
+    """Select previous task in list."""
+    s = state.get_state()
+    cfg = config.get_config()
+
+    tasks = s.list_tasks(include_done=False)
+    if not tasks:
+        print("Error: No tasks", file=sys.stderr)
+        return 1
+
+    current_id = s.get_current_task_id()
+
+    # Find current index
+    current_idx = 0
+    for i, t in enumerate(tasks):
+        if t['id'] == current_id:
+            current_idx = i
+            break
+
+    # Get previous task (wrap around)
+    prev_idx = (current_idx - 1) % len(tasks)
+    prev_task = tasks[prev_idx]
+
+    if prev_task['id'] == current_id:
+        # Only one task
+        return 0
+
+    monitor = s.get_setting('monitor') or cfg.monitor
+    if not monitor:
+        monitor = bspwm.get_focused_monitor()
+
+    try:
+        bspwm.swap_task_windows(monitor, current_id, prev_task['id'])
+        s.set_current_task_id(prev_task['id'])
+        return 0
+    except bspwm.BspwmError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
 def main():
     """Main CLI entrypoint."""
     parser = argparse.ArgumentParser(
@@ -288,6 +368,14 @@ def main():
     status_parser = subparsers.add_parser('status', help='Output status for polybar')
     status_parser.add_argument('-l', '--max-length', type=int, default=50, help='Max title length')
     status_parser.set_defaults(func=cmd_status)
+
+    # tw n - next task
+    next_parser = subparsers.add_parser('n', help='Select next task')
+    next_parser.set_defaults(func=cmd_next)
+
+    # tw p - previous task
+    prev_parser = subparsers.add_parser('p', help='Select previous task')
+    prev_parser.set_defaults(func=cmd_prev)
 
     args = parser.parse_args()
 
