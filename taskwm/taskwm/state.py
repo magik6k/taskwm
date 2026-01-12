@@ -100,7 +100,9 @@ class State:
             "created": int(time.time()),
             "done": False,
             "size": "M",
-            "category": None
+            "category": None,
+            "prepared": False,
+            "blocked": False
         }
         data["tasks"].append(task)
         self.save()
@@ -183,6 +185,26 @@ class State:
         for task in data["tasks"]:
             if task["id"] == task_id:
                 task["category"] = category_id
+                self.save()
+                return True
+        return False
+
+    def set_task_prepared(self, task_id: int, prepared: bool) -> bool:
+        """Set task prepared state."""
+        data = self.load()
+        for task in data["tasks"]:
+            if task["id"] == task_id:
+                task["prepared"] = prepared
+                self.save()
+                return True
+        return False
+
+    def set_task_blocked(self, task_id: int, blocked: bool) -> bool:
+        """Set task blocked state."""
+        data = self.load()
+        for task in data["tasks"]:
+            if task["id"] == task_id:
+                task["blocked"] = blocked
                 self.save()
                 return True
         return False

@@ -98,11 +98,13 @@ class PickerAPI:
             # Remove desktop
             bspwm.remove_task_desktop(task_id)
 
-            # If we closed the current task, auto-select next one
+            # If we closed the current task, auto-select next non-blocked one
             if task_id == current_id:
                 remaining = self._st.list_tasks(include_done=False)
-                if remaining:
-                    next_task = remaining[0]
+                # Skip blocked tasks
+                available = [t for t in remaining if not t.get('blocked', False)]
+                if available:
+                    next_task = available[0]
                     monitor = self._st.get_setting('monitor') or self._cfg.monitor
                     if monitor:
                         bspwm.swap_task_windows(monitor, None, next_task['id'])
@@ -137,6 +139,14 @@ class PickerAPI:
     def set_task_category(self, task_id: int, category_id: int | None) -> bool:
         """Set task category."""
         return self._st.set_task_category(task_id, category_id)
+
+    def set_task_prepared(self, task_id: int, prepared: bool) -> bool:
+        """Set task prepared state."""
+        return self._st.set_task_prepared(task_id, prepared)
+
+    def set_task_blocked(self, task_id: int, blocked: bool) -> bool:
+        """Set task blocked state."""
+        return self._st.set_task_blocked(task_id, blocked)
 
     def get_categories(self) -> list:
         """Get all categories."""

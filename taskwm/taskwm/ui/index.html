@@ -123,6 +123,8 @@
             renameTask(id, newTitle) { return this.call('rename_task', id, newTitle); }
             setTaskSize(id, size) { return this.call('set_task_size', id, size); }
             setTaskCategory(id, categoryId) { return this.call('set_task_category', id, categoryId); }
+            setTaskPrepared(id, prepared) { return this.call('set_task_prepared', id, prepared); }
+            setTaskBlocked(id, blocked) { return this.call('set_task_blocked', id, blocked); }
             getCategories() { return this.call('get_categories'); }
             addCategory(name, color) { return this.call('add_category', name, color); }
             updateCategory(id, name, color) { return this.call('update_category', id, name, color); }
@@ -223,6 +225,7 @@
                     gap: 4px;
                     cursor: pointer;
                     position: relative;
+                    min-width: 130px;
                 }
 
                 .size-bar {
@@ -279,6 +282,53 @@
                 .size-option .bar {
                     height: 10px;
                     background: var(--accent);
+                }
+
+                /* State toggle buttons */
+                .state-checks {
+                    display: flex;
+                    gap: 4px;
+                    align-items: center;
+                    min-width: 120px;
+                }
+
+                .state-btn {
+                    padding: 2px 8px;
+                    font-size: 11px;
+                    font-weight: 450;
+                    letter-spacing: 0.03em;
+                    cursor: pointer;
+                    user-select: none;
+                    border: 1px solid var(--border);
+                    background: var(--entry-bg);
+                    color: var(--muted);
+                    transition: all 0.15s;
+                }
+
+                .state-btn:hover {
+                    border-color: var(--muted);
+                    color: var(--fg-dim);
+                }
+
+                .state-btn.active {
+                    background: var(--accent-dim);
+                    border-color: var(--accent-dim);
+                    color: var(--bg);
+                }
+
+                .state-btn.blocked.active {
+                    background: var(--danger-dim);
+                    border-color: var(--danger-dim);
+                    color: var(--bg);
+                }
+
+                .task-row.blocked {
+                    opacity: 0.5;
+                }
+
+                .task-row.blocked .task-title {
+                    text-decoration: line-through;
+                    text-decoration-color: var(--muted);
                 }
 
                 /* Category select */
@@ -472,9 +522,10 @@
 
             render() {
                 const catColor = this._getCategoryColor();
+                const isBlocked = this.task.blocked || false;
 
                 return html`
-                    <div class="task-row ${this.isSelected ? 'selected' : ''} ${this.dragging ? 'dragging' : ''} ${this.dragOver ? 'drag-over' : ''}"
+                    <div class="task-row ${this.isSelected ? 'selected' : ''} ${this.dragging ? 'dragging' : ''} ${this.dragOver ? 'drag-over' : ''} ${isBlocked ? 'blocked' : ''}"
                          style="border-left-color: ${catColor}"
                          draggable="${!this.editing}"
                          @dragstart=${this._onDragStart}
@@ -488,11 +539,25 @@
                                 <span class="indicator">${this.isCurrent ? '▶' : ''}</span>
                                 ${this.task.title}
                             </span>
+                            ${this._renderStateChecks()}
                             ${this._renderSizeGauge()}
                             ${this._renderCategorySelect()}
                             <span class="win-count">${this.winCount}w</span>
                             ${this.confirming ? this._renderConfirm() : this._renderControls()}
                         `}
+                    </div>
+                `;
+            }
+
+            _renderStateChecks() {
+                const isPrepared = this.task.prepared || false;
+                const isBlocked = this.task.blocked || false;
+                return html`
+                    <div class="state-checks">
+                        <span class="state-btn ${isPrepared ? 'active' : ''}"
+                              @click=${this._onPreparedToggle}>Prep</span>
+                        <span class="state-btn blocked ${isBlocked ? 'active' : ''}"
+                              @click=${this._onBlockedToggle}>Block</span>
                     </div>
                 `;
             }
@@ -597,6 +662,22 @@
                 const categoryId = val ? parseInt(val, 10) : null;
                 this.dispatchEvent(new CustomEvent('task-category-change', {
                     detail: { taskId: this.task.id, categoryId },
+                    bubbles: true, composed: true
+                }));
+            }
+
+            _onPreparedToggle(e) {
+                e.stopPropagation();
+                this.dispatchEvent(new CustomEvent('task-prepared-change', {
+                    detail: { taskId: this.task.id, prepared: !(this.task.prepared || false) },
+                    bubbles: true, composed: true
+                }));
+            }
+
+            _onBlockedToggle(e) {
+                e.stopPropagation();
+                this.dispatchEvent(new CustomEvent('task-blocked-change', {
+                    detail: { taskId: this.task.id, blocked: !(this.task.blocked || false) },
                     bubbles: true, composed: true
                 }));
             }
@@ -1026,6 +1107,8 @@
                 filterMinSize: { type: String },
                 filterMaxSize: { type: String },
                 filterCategories: { type: Array },
+                filterPrepared: { type: Array },  // ['prepared', 'not-prepared'] or subset
+                filterBlocked: { type: Boolean },  // true = show blocked, false = hide blocked, null = show all
                 showCategoryManager: { type: Boolean },
             };
 
@@ -1221,6 +1304,8 @@
                 this.filterMinSize = '';
                 this.filterMaxSize = '';
                 this.filterCategories = [];
+                this.filterPrepared = [];  // empty = show all, ['prepared'] = only prepared, etc.
+                this.filterBlocked = null;  // null = show all, true = only blocked, false = hide blocked
                 this.showCategoryManager = false;
                 this._init();
             }
@@ -1286,6 +1371,28 @@
                         if (!this.filterCategories.includes(task.category)) {
                             return false;
                         }
+                    }
+
+                    // Prepared filter
+                    if (this.filterPrepared.length > 0) {
+                        const isPrepared = task.prepared || false;
+                        const showPrepared = this.filterPrepared.includes('prepared');
+                        const showNotPrepared = this.filterPrepared.includes('not-prepared');
+
+                        if (showPrepared && showNotPrepared) {
+                            // Both selected = show all
+                        } else if (showPrepared && !isPrepared) {
+                            return false;
+                        } else if (showNotPrepared && isPrepared) {
+                            return false;
+                        }
+                    }
+
+                    // Blocked filter
+                    if (this.filterBlocked !== null) {
+                        const isBlocked = task.blocked || false;
+                        if (this.filterBlocked && !isBlocked) return false;
+                        if (!this.filterBlocked && isBlocked) return false;
                     }
 
                     return true;
@@ -1395,6 +1502,23 @@
                             </select>
                         </div>
 
+                        <div class="filter-group">
+                            <span class="filter-label">State:</span>
+                            <span class="cat-chip ${this.filterPrepared.includes('prepared') ? 'active' : ''}"
+                                  @click=${() => this._togglePreparedFilter('prepared')}>
+                                Prepared
+                            </span>
+                            <span class="cat-chip ${this.filterPrepared.includes('not-prepared') ? 'active' : ''}"
+                                  @click=${() => this._togglePreparedFilter('not-prepared')}>
+                                Not Prep
+                            </span>
+                            <span class="cat-chip ${this.filterBlocked !== null ? 'active' : ''}"
+                                  style="${this.filterBlocked === true ? 'border-color: var(--danger-dim); color: var(--danger);' : ''}"
+                                  @click=${this._toggleBlockedFilter}>
+                                ${this.filterBlocked === true ? 'Blocked' : this.filterBlocked === false ? '¬Blocked' : 'Blocked'}
+                            </span>
+                        </div>
+
                         <div class="cat-filter">
                             ${this.categories.map(c => html`
                                 <span class="cat-chip ${this.filterCategories.includes(c.id) ? 'active' : ''}"
@@ -1428,7 +1552,9 @@
                          @task-drop=${this._onTaskDrop}
                          @task-rename=${this._onTaskRename}
                          @task-size-change=${this._onTaskSizeChange}
-                         @task-category-change=${this._onTaskCategoryChange}>
+                         @task-category-change=${this._onTaskCategoryChange}
+                         @task-prepared-change=${this._onTaskPreparedChange}
+                         @task-blocked-change=${this._onTaskBlockedChange}>
                         ${filtered.length === 0 ? html`
                             <div class="no-tasks">No tasks${this.tasks.length > 0 ? ' (filtered)' : ''}</div>
                         ` : filtered.map((task, index) => html`
@@ -1449,6 +1575,25 @@
                     this.filterCategories = this.filterCategories.filter(id => id !== catId);
                 } else {
                     this.filterCategories = [...this.filterCategories, catId];
+                }
+            }
+
+            _togglePreparedFilter(value) {
+                if (this.filterPrepared.includes(value)) {
+                    this.filterPrepared = this.filterPrepared.filter(v => v !== value);
+                } else {
+                    this.filterPrepared = [...this.filterPrepared, value];
+                }
+            }
+
+            _toggleBlockedFilter() {
+                // Cycle: null -> true -> false -> null
+                if (this.filterBlocked === null) {
+                    this.filterBlocked = true;  // Show only blocked
+                } else if (this.filterBlocked === true) {
+                    this.filterBlocked = false; // Hide blocked
+                } else {
+                    this.filterBlocked = null;  // Show all
                 }
             }
 
@@ -1511,6 +1656,18 @@
             async _onTaskCategoryChange(e) {
                 const { taskId, categoryId } = e.detail;
                 await api.setTaskCategory(taskId, categoryId);
+                await this._refresh();
+            }
+
+            async _onTaskPreparedChange(e) {
+                const { taskId, prepared } = e.detail;
+                await api.setTaskPrepared(taskId, prepared);
+                await this._refresh();
+            }
+
+            async _onTaskBlockedChange(e) {
+                const { taskId, blocked } = e.detail;
+                await api.setTaskBlocked(taskId, blocked);
                 await this._refresh();
             }
 

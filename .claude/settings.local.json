@@ -10,7 +10,9 @@
       "WebFetch(domain:www.numberanalytics.com)",
       "WebSearch",
       "WebFetch(domain:www.smashingmagazine.com)",
-      "Bash(python -m taskwm.daemon:*)"
+      "Bash(python -m taskwm.daemon:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
