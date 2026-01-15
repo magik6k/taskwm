@@ -66,6 +66,15 @@ class Daemon:
         for task in self.st.list_tasks():
             bspwm.ensure_task_desktop(self.monitor, task['id'])
 
+        # Remove default "Desktop" desktop if it exists (bspwm creates it on startup)
+        bspwm.remove_desktop("Desktop")
+
+        # Focus tasks desktop on startup
+        try:
+            bspwm.run_bspc(['desktop', '-f', TASKS_DESKTOP])
+        except bspwm.BspwmError:
+            pass
+
         print(f"[daemon] Using monitor: {self.monitor}", file=sys.stderr)
 
     def start_picker(self):
@@ -78,13 +87,21 @@ class Daemon:
         # Workaround for WebKitGTK + NVIDIA blank window issue
         env['WEBKIT_DISABLE_DMABUF_RENDERER'] = '1'
         env['WEBKIT_DISABLE_COMPOSITING_MODE'] = '1'
+        # Ensure taskwm module can be found
+        taskwm_root = Path(__file__).parent.parent
+        env['PYTHONPATH'] = str(taskwm_root) + ':' + env.get('PYTHONPATH', '')
+
+        # Log picker output to file for debugging
+        log_file = RUNTIME_DIR / "picker.log"
+        log_handle = open(log_file, 'w')
 
         self.picker_proc = subprocess.Popen(
             [sys.executable, '-m', 'taskwm.ui_picker'],
             env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stdout=log_handle,
+            stderr=log_handle
         )
+        self._picker_log = log_handle  # Keep reference to prevent closing
 
         # Save PID
         RUNTIME_DIR.mkdir(parents=True, exist_ok=True)

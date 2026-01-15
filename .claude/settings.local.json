@@ -12,7 +12,8 @@
       "WebFetch(domain:www.smashingmagazine.com)",
       "Bash(python -m taskwm.daemon:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(xdotool search:*)"
     ]
   }
 }
