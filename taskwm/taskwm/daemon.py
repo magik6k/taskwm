@@ -39,15 +39,21 @@ class Daemon:
         """Initial setup - determine monitor, ensure desktops."""
         # Determine target monitor
         self.monitor = self.cfg.monitor
+
+        # Validate configured monitor exists
+        available_monitors = bspwm.get_monitors()
+        if not available_monitors:
+            raise RuntimeError("No monitors found")
+
+        if self.monitor and self.monitor not in available_monitors:
+            print(f"[daemon] Configured monitor '{self.monitor}' not found, auto-detecting...", file=sys.stderr)
+            self.monitor = None
+
         if not self.monitor:
             try:
                 self.monitor = bspwm.get_focused_monitor()
             except bspwm.BspwmError:
-                monitors = bspwm.get_monitors()
-                if monitors:
-                    self.monitor = monitors[0]
-                else:
-                    raise RuntimeError("No monitors found")
+                self.monitor = available_monitors[0]
 
         # Save monitor to state
         self.st.set_setting('monitor', self.monitor)

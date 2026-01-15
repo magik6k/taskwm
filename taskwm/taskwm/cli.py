@@ -117,16 +117,17 @@ def cmd_done(args):
         # Remove task desktop
         bspwm.remove_task_desktop(task_id)
 
-        # Auto-select next task if available
+        # Auto-select next non-blocked task if available
         remaining_tasks = s.list_tasks(include_done=False)
-        if remaining_tasks:
-            next_task = remaining_tasks[0]
+        available_tasks = [t for t in remaining_tasks if not t.get('blocked', False)]
+        if available_tasks:
+            next_task = available_tasks[0]
             next_task_id = next_task['id']
             # Swap windows from next task to active
             bspwm.swap_task_windows(monitor, None, next_task_id)
             s.set_current_task_id(next_task_id)
         else:
-            # No tasks left
+            # No non-blocked tasks left
             s.set_current_task_id(None)
 
         return 0
@@ -208,6 +209,47 @@ def cmd_daemon(args):
     return daemon.run_daemon()
 
 
+def cmd_quit(args):
+    """Kill all taskwm processes."""
+    import os
+    import subprocess
+    import signal
+    from pathlib import Path
+
+    RUNTIME_DIR = Path.home() / ".local" / "state" / "taskwm"
+    PID_FILE = RUNTIME_DIR / "daemon.pid"
+    PICKER_PID_FILE = RUNTIME_DIR / "picker.pid"
+
+    killed = []
+
+    # Kill by PID files first
+    for name, pid_file in [("daemon", PID_FILE), ("picker", PICKER_PID_FILE)]:
+        if pid_file.exists():
+            try:
+                pid = int(pid_file.read_text().strip())
+                os.kill(pid, signal.SIGTERM)
+                killed.append(f"{name} (PID {pid})")
+                pid_file.unlink()
+            except (ValueError, ProcessLookupError, PermissionError):
+                try:
+                    pid_file.unlink()
+                except Exception:
+                    pass
+
+    # Also pkill any remaining taskwm processes
+    try:
+        subprocess.run(['pkill', '-f', 'python.*taskwm'], timeout=2)
+    except Exception:
+        pass
+
+    if killed:
+        print(f"Killed: {', '.join(killed)}")
+    else:
+        print("No taskwm processes found")
+
+    return 0
+
+
 def cmd_ui(args):
     """Start UI components for development."""
     from . import ui_picker
@@ -235,13 +277,18 @@ def cmd_status(args):
 
 
 def cmd_next(args):
-    """Select next task in list."""
+    """Select next task in list (skips blocked tasks)."""
     s = state.get_state()
     cfg = config.get_config()
 
-    tasks = s.list_tasks(include_done=False)
+    all_tasks = s.list_tasks(include_done=False)
+    # Filter out blocked tasks
+    tasks = [t for t in all_tasks if not t.get('blocked', False)]
+    # If -p flag, only include prepared tasks
+    if hasattr(args, 'prepared') and args.prepared:
+        tasks = [t for t in tasks if t.get('prepared', False)]
     if not tasks:
-        print("Error: No tasks", file=sys.stderr)
+        print("Error: No available tasks", file=sys.stderr)
         return 1
 
     current_id = s.get_current_task_id()
@@ -275,13 +322,18 @@ def cmd_next(args):
 
 
 def cmd_prev(args):
-    """Select previous task in list."""
+    """Select previous task in list (skips blocked tasks)."""
     s = state.get_state()
     cfg = config.get_config()
 
-    tasks = s.list_tasks(include_done=False)
+    all_tasks = s.list_tasks(include_done=False)
+    # Filter out blocked tasks
+    tasks = [t for t in all_tasks if not t.get('blocked', False)]
+    # If -p flag, only include prepared tasks
+    if hasattr(args, 'prepared') and args.prepared:
+        tasks = [t for t in tasks if t.get('prepared', False)]
     if not tasks:
-        print("Error: No tasks", file=sys.stderr)
+        print("Error: No available tasks", file=sys.stderr)
         return 1
 
     current_id = s.get_current_task_id()
@@ -360,6 +412,10 @@ def main():
     daemon_parser = subparsers.add_parser('daemon', help='Run the background daemon')
     daemon_parser.set_defaults(func=cmd_daemon)
 
+    # tw quit - kill all taskwm processes
+    quit_parser = subparsers.add_parser('quit', help='Kill all taskwm processes')
+    quit_parser.set_defaults(func=cmd_quit)
+
     # tw ui - start UI (dev mode)
     ui_parser = subparsers.add_parser('ui', help='Start picker UI')
     ui_parser.set_defaults(func=cmd_ui)
@@ -371,10 +427,12 @@ def main():
 
     # tw n - next task
     next_parser = subparsers.add_parser('n', help='Select next task')
+    next_parser.add_argument('-p', '--prepared', action='store_true', help='Only consider prepared tasks')
     next_parser.set_defaults(func=cmd_next)
 
     # tw p - previous task
     prev_parser = subparsers.add_parser('p', help='Select previous task')
+    prev_parser.add_argument('-p', '--prepared', action='store_true', help='Only consider prepared tasks')
     prev_parser.set_defaults(func=cmd_prev)
 
     args = parser.parse_args()
